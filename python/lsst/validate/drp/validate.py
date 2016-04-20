@@ -26,7 +26,7 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.image.utils as afwImageUtils
 from lsst.afw.table import SourceCatalog, SchemaMapper, Field
-from lsst.afw.table import MultiMatch, SimpleRecord, GroupView
+from lsst.afw.table import MultiMatch, SimpleRecord, GroupView, SOURCE_IO_NO_FOOTPRINTS
 from lsst.afw.fits.fitsLib import FitsError
 import lsst.daf.persistence as dafPersist
 import lsst.pipe.base as pipeBase
@@ -118,7 +118,7 @@ def loadAndMatchData(repo, dataIds,
 
         calib = afwImage.Calib(calexpMetadata)
 
-        oldSrc = butler.get('src', vId, immediate=True)
+        oldSrc = butler.get('src', vId, immediate=True, flags=SOURCE_IO_NO_FOOTPRINTS)
         print(len(oldSrc), "sources in ccd %s  visit %s" % (vId[ccdKeyName], vId["visit"]))
 
         # create temporary catalog
