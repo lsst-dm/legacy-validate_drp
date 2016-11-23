@@ -20,6 +20,8 @@
 
 from __future__ import print_function, division
 
+import matplotlib
+matplotlib.use('Agg')  # Don't require use of X11
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.stats
