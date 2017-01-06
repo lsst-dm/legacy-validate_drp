@@ -47,7 +47,8 @@ if __name__ == "__main__":
     where REPONAME is based on the repository name but with path separators
     replaced with underscores.  E.g., "Cfht/output" -> "Cfht_output_"
     """
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('repo', type=str,
                         help='path to a repository containing the output of processCcd')
     parser.add_argument('--configFile', '-c', type=str, default=None,
