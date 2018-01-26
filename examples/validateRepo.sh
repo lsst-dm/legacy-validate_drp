@@ -36,7 +36,8 @@ WORKSPACE=${CAMERA}
 OUTPUT=${WORKSPACE}/output
 
 if ! [ -d "${OUTPUT}" ]; then
-   print_error "Repository does not exist.  Please run processData.sh first."
+    print_error "Repository does not exist.  Please run processData.sh first."
+    exit 1
 fi
 
 # YAML config file for validation configuration

@@ -11,7 +11,7 @@ ASTROMDIR=astrometry_net_data
 
 usage() {
     print_error
-    print_error "Usage: $0 [-cmvfiear] [-h] [-- <options to validateDrp.py>]"
+    print_error "Usage: $0 [-cmvfiear] [-h]"
     print_error
     print_error "Specifc options:"
     print_error "   -c          Camera"
