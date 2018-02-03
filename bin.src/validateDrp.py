@@ -65,6 +65,8 @@ if __name__ == "__main__":
                         help='Skip making plots of performance.')
     parser.add_argument('--level', type=str, default='design',
                         help='Level of SRD requirement to meet: "minimum", "design", "stretch"')
+    parser.add_argument('--skipTEx', default=False, action='store_true',
+                        help='Skip TEx calculations.')
 
     args = parser.parse_args()
 
@@ -95,5 +97,6 @@ if __name__ == "__main__":
     kwargs['verbose'] = args.verbose
     kwargs['makePlot'] = args.makePlot
     kwargs['level'] = args.level
+    kwargs['skipTEx'] = args.skipTEx
 
     validate.run(args.repo, **kwargs)
