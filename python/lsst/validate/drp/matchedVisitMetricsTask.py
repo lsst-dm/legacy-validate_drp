@@ -16,8 +16,8 @@ class MatchedVisitMetricsRunner(TaskRunner):
     MatchedVisitMetricsTask.run().
     """
 
-    @staticmethod
-    def getTargetList(parsedCmd, **kwargs):
+    @classmethod
+    def getTargetList(cls, parsedCmd, **kwargs):
         # organize data IDs by filter
         id_list_dict = {}
         for ref in parsedCmd.id.refList:
