@@ -2,8 +2,12 @@
 
 set -e
 
-PRODUCT_DIR="$VALIDATE_DRP_DIR"
+PRODUCT_DIR=${LSST_CI_DIR}
+if [[ ${PRODUCT_DIR} == '' ]]; then
+    PRODUCT_DIR='.'
+fi
 VALIDATION_DATA_DIR="$VALIDATION_DATA_HSC_DIR/raw"
+PHOTOMETRIC_REF_CAT_DIR="$VALIDATION_DATA_HSC_DIR/ref_cats"
 CALIB_DATA="$VALIDATION_DATA_HSC_DIR/CALIB"
 
 CAMERA=Hsc
@@ -40,19 +44,19 @@ done
 shift $((OPTIND-1))
 
 if [[ $DOPROCESS == true ]]; then
-    "${PRODUCT_DIR}/examples/processData.sh" \
+    "${PRODUCT_DIR}/scripts/processData.sh" \
         -c "$CAMERA" \
         -m "$MAPPER" \
         -v "$VALIDATION_DATA_DIR" \
+        -p "$PHOTOMETRIC_REF_CAT_DIR" \
         -f "$CONFIG_FILE" \
         -e "fits" \
-        -a "$ASTROMDIR" \
         -d "$CALIB_DATA" \
         -r
 fi
 
 if [[ $DOVERIFY == true ]]; then
-    "${PRODUCT_DIR}/examples/validateRepo.sh" \
+    "${PRODUCT_DIR}/scripts/validateRepo.sh" \
         -c "$CAMERA" \
         -- "$@"
 fi

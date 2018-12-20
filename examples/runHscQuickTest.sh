@@ -2,8 +2,10 @@
 
 set -e
 
-PRODUCT_DIR="$VALIDATE_DRP_DIR"
+PRODUCT_DIR="${VALIDATE_DRP_DIR}"
 VALIDATION_DATA_DIR="$CI_HSC_DIR/raw"
+#  "ps1_pv3_3pi_20170110" is stored at the base level in ci_hsc.
+PHOTOMETRIC_REF_CAT_DIR="$CI_HSC_DIR"
 CALIB_DATA="$CI_HSC_DIR/CALIB"
 
 CAMERA=HscQuick
@@ -45,7 +47,7 @@ done
 shift $((OPTIND-1))
 
 if [[ $DOPROCESS == true ]]; then
-    "${PRODUCT_DIR}/examples/processData.sh" \
+    "${PRODUCT_DIR}/scripts/processData.sh" \
         -c "$CAMERA" \
         -m "$MAPPER" \
         -v "$VALIDATION_DATA_DIR" \
@@ -57,7 +59,7 @@ if [[ $DOPROCESS == true ]]; then
 fi
 
 if [[ $DOVERIFY == true ]]; then
-    "${PRODUCT_DIR}/examples/validateRepo.sh" \
+    "${PRODUCT_DIR}/scripts/validateRepo.sh" \
         -c "$CAMERA" \
         -- "$@"
 fi
