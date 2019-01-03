@@ -47,7 +47,7 @@ done
 shift $((OPTIND-1))
 
 if [[ $DOPROCESS == true ]]; then
-    "${PRODUCT_DIR}/scripts/processData.sh" \
+    "${PRODUCT_DIR}/examples/processData.sh" \
         -c "$CAMERA" \
         -m "$MAPPER" \
         -v "$VALIDATION_DATA_DIR" \
@@ -59,7 +59,7 @@ if [[ $DOPROCESS == true ]]; then
 fi
 
 if [[ $DOVERIFY == true ]]; then
-    "${PRODUCT_DIR}/scripts/validateRepo.sh" \
+    "${PRODUCT_DIR}/examples/validateRepo.sh" \
         -c "$CAMERA" \
         -- "$@"
 fi
