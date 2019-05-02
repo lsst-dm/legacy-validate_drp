@@ -265,10 +265,11 @@ def getRandomDiffRmsInMmags(array):
 
     Examples
     --------
+    # Shuffle will mean it's either +-919.[....]
     >>> mag = [24.2, 25.5]
     >>> rms = getRandomDiffRmsInMmags(mag)
-    >>> print(rms)
-    212.132034
+    >>> print(abs(rms))
+    919.2388155425122
     """
     # For scalars, math.sqrt is several times faster than numpy.sqrt.
     return (1000/math.sqrt(2)) * getRandomDiff(array)
