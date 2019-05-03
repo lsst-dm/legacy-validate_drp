@@ -343,9 +343,11 @@ def plotPhotometryErrorModel(dataset, photomModel,
                      label='{label} > {value:.0f}'.format(
                          label=photomModel['brightSnr'].label,
                          value=photomModel['brightSnr'].quantity.value))
-    ax[0][1].set_xlabel("{label} [{unit:latex}]".format(label=filterName,
-                                                        unit=mag.unit))
-    ax[0][1].set_ylabel("{label} [{unit:latex}]".format(label=dataset['magrms'].label,
+    ax[0][1].set_xlabel("{label} [{unit:latex}]".format(
+#       label=filterName,
+        label='r',
+        unit=mag.unit))
+    ax[0][1].set_ylabel("{label}) [{unit:latex}]".format(label=dataset['magrms'].label.split('\n')[0],
                                                         unit=mmagRmsHighSnr.unit))
     ax[0][1].set_xlim([17, 24])
     ax[0][1].set_ylim([0, 500])
@@ -375,8 +377,8 @@ def plotPhotometryErrorModel(dataset, photomModel,
     ax[1][0].set_yscale('log')
     ax[1][0].plot([0, 1000], [0, 1000],
                   linestyle='--', color='black', linewidth=2)
-    ax[1][0].set_xlabel("{label} [{unit:latex}]".format(
-        label=dataset['magrms'].label,
+    ax[1][0].set_xlabel("{label}) [{unit:latex}]".format(
+        label=dataset['magrms'].label.split('\n')[0],
         unit=mmagRms.unit))
     ax[1][0].set_ylabel("Median Reported Magnitude Err [{unit:latex}]".format(
         unit=mmagErr.unit))
@@ -400,8 +402,10 @@ def plotPhotometryErrorModel(dataset, photomModel,
                      mmagErrHighSnr,
                      s=10, color=color['bright'],
                      label=None)
-    ax[1][1].set_xlabel("{name} [{unit:latex}]".format(
-        name=filterName, unit=mag.unit))
+    ax[1][1].set_xlabel("{label} [{unit:latex}]".format(
+#        label=filterName,
+        label='r',
+        unit=mag.unit))
     ax[1][1].set_ylabel("Median Reported Magnitude Err [{unit:latex}]".format(
         unit=mmagErr.unit))
     ax[1][1].set_xlim([17, 24])
@@ -535,9 +539,11 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix="",
                  magFaint=magRange[1]))
     metric_name = amx.metric_name
     amxSpec = job.specs[Name(package=metric_name.package, metric=metric_name.metric, spec=amxSpecName)]
-    amxSpecLabelTemplate = '{amx.datum.label} {specname}: {amxSpec.threshold:.1f}'
+#    amxSpecLabelTemplate = '{amx.datum.label} {specname}: {amxSpec.threshold:.1f}'
+    amxSpecLabelTemplate = '{label} {specname}: {amxSpec.threshold:.1f}'
     amxSpecLabel = amxSpecLabelTemplate.format(
         amx=amx,
+        label=amx.datum.label.split('.')[1],
         specname=amxSpecName,
         amxSpec=amxSpec)
     ax1.axvline(amxSpec.threshold.value, 0, 1, linewidth=2, color='red',
@@ -547,8 +553,12 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix="",
         amxStatus = 'passed'
     else:
         amxStatus = 'failed'
-    amxLabelTemplate = '{amx.datum.label} measured: {amx.quantity:.1f} ({status})'
-    amxLabel = amxLabelTemplate.format(amx=amx, status=amxStatus)
+#    amxLabelTemplate = '{amx.datum.label} measured: {amx.quantity:.1f} ({status})'
+    amxLabelTemplate = '{label} measured: {amx.quantity:.1f} ({status})'
+    amxLabel = amxLabelTemplate.format(
+        amx=amx,
+        label=amx.datum.label.split('.')[1],
+        status=amxStatus)
     ax1.axvline(amxSpec.threshold.value, 0, 1, linewidth=2, color='black',
                 label=amxLabel)
 
@@ -557,11 +567,15 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix="",
         afxStatus = 'passed'
     else:
         afxStatus = 'failed'
-    afxLabelTemplate = '{afx.datum.label} {afxSpec.name}: {afxSpec.threshold}%\n' + \
-                       '{afx.datum.label} measured: {afx.quantity:.1f}% ({status})'
+#    afxLabelTemplate = '{afx.datum.label} {afxSpec.name}: {afxSpec.threshold}%\n' + \
+#                       '{afx.datum.label} measured: {afx.quantity:.1f}% ({status})'
+    afxLabelTemplate = '{label} {specname}: {afxSpec.threshold}\n' + \
+                       '{label} measured: {afx.quantity:.1f} ({status})'
     afxLabel = afxLabelTemplate.format(
         afx=afx,
+        label=afx.datum.label.split('.')[1].split('_')[0],
         afxSpec=afxSpec,
+        specname=amxSpecName,
         status=afxStatus)
     ax1.axvline((amx.quantity + afx.extras['ADx'].quantity).value,
                 0, 1, linewidth=2, color='green',
