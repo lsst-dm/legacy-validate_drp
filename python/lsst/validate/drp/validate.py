@@ -321,8 +321,10 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         amx = measureAMx(metrics['validate_drp.'+amxName], matchedDataset, D*u.arcmin)
         add_measurement(amx)
 
-        afx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[afxName, ])
-        adx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[adxName, ])
+        afx_spec_set = specs.subset(spec_tags=[afxName, ])
+        adx_spec_set = specs.subset(spec_tags=[adxName, ])
+#        afx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[afxName, ])
+#        adx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[adxName, ])
         for afx_spec_key, adx_spec_key in zip(afx_spec_set, adx_spec_set):
             afx_spec = afx_spec_set[afx_spec_key]
             adx_spec = adx_spec_set[adx_spec_key]
@@ -438,20 +440,29 @@ def plot_metrics(job, filterName, outputPrefix=''):
             measurement = measurements[get_metric(spec_name, texName, specs)]
             plotTEx(job, measurement, filterName,
                     texSpecName='design',
-                    outputPrefix=outputPrefix)
+                    outputPrefix=outputPrefix,
+                    showTitle=showTitle, plotExt=plotExt)
         except (RuntimeError, KeyError) as e:
             print(e)
             print('\tSkipped plot{}'.format(texName))
 
 
-def get_specs_metrics(job):
-    # Get specs for this filter
-    subset = job.specs.subset(required_meta={'instrument': job.meta['instrument'],
-                                             'filter_name': job.meta['filter_name']},
-                              spec_tags=['chromatic'])
-    # Get specs that don't depend on filter
-    subset.update(job.specs.subset(required_meta={'instrument': job.meta['instrument']},
-                                   spec_tags=['achromatic']))
+def get_specs_metrics(job, require_instrument=False):
+    if require_instrument:
+        # Get specs for this filter
+        subset = job.specs.subset(required_meta={'instrument': job.meta['instrument'],
+                                                 'filter_name': job.meta['filter_name']},
+                                  spec_tags=['chromatic'])
+        # Get specs that don't depend on filter
+        subset.update(job.specs.subset(required_meta={'instrument': job.meta['instrument']},
+                                       spec_tags=['achromatic']))
+    else:
+        # Get specs for this filter
+        subset = job.specs.subset(required_meta={'filter_name': job.meta['filter_name']},
+                                  spec_tags=['chromatic'])
+        # Get specs that don't depend on filter
+        subset.update(job.specs.subset(spec_tags=['achromatic']))
+
     metrics = {}
     specs = {}
     for spec in subset:
