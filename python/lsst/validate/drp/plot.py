@@ -137,6 +137,7 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix='',
             snr=astromModel['brightSnr'].quantity.value,
             v=bright_dist_median))
     ax[0].legend(loc='upper right')
+    ax[0].set_xlabel('#/bin')
 
     snr = dataset['snr'].quantity
     ax[1].scatter(snr, dist,
