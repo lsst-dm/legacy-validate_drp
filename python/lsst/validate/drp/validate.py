@@ -103,7 +103,8 @@ def get_filter_name_from_job(job):
 
 
 def run(repo_or_json, metrics=None,
-        outputPrefix=None, makePrint=True, makePlot=True,
+        outputPrefix=None, makePrint=True,
+        makePlot=True, showTitle=True, plotExt='png',
         level='design', metrics_package='verify_metrics', **kwargs):
     """Main entrypoint from ``validateDrp.py``.
 
@@ -159,7 +160,8 @@ def run(repo_or_json, metrics=None,
                 thisOutputPrefix = "%s" % filterName
             else:
                 thisOutputPrefix = "%s_%s" % (outputPrefix, filterName)
-            plot_metrics(job, filterName, outputPrefix=thisOutputPrefix)
+            plot_metrics(job, filterName, outputPrefix=thisOutputPrefix,
+                         showTitle=showTitle, plotExt=plotExt)
 
     print_pass_fail_summary(jobs, default_level=level)
 
@@ -374,7 +376,7 @@ def get_metric(level, metric_label, in_specs):
     return Name(package=spec.package, metric=spec.metric)
 
 
-def plot_metrics(job, filterName, outputPrefix=''):
+def plot_metrics(job, filterName, outputPrefix='', showTitle=True, plotExt='png'):
     """Plot AM1, AM2, AM3, PA1 plus related informational plots.
 
     Parameters
@@ -400,14 +402,14 @@ def plot_metrics(job, filterName, outputPrefix=''):
         if amx.quantity is not None:
             try:
                 plotAMx(job, amx, afx, filterName, amxSpecName=spec_name,
-                        outputPrefix=outputPrefix)
+                        outputPrefix=outputPrefix, showTitle=showTitle, plotExt=plotExt)
             except RuntimeError as e:
                 print(e)
                 print('\tSkipped plot{}'.format(amxName))
 
     try:
         pa1 = measurements[get_metric(spec_name, 'PA1', specs)]
-        plotPA1(pa1, outputPrefix=outputPrefix)
+        plotPA1(pa1, outputPrefix=outputPrefix, showTitle=showTitle, plotExt=plotExt)
     except RuntimeError as e:
         print(e)
         print('\tSkipped plotPA1')
@@ -418,7 +420,8 @@ def plot_metrics(job, filterName, outputPrefix=''):
         filterName = pa1.extras['filter_name']
         plotPhotometryErrorModel(matchedDataset, photomModel,
                                  filterName=filterName,
-                                 outputPrefix=outputPrefix)
+                                 outputPrefix=outputPrefix,
+                                 showTitle=showTitle, plotExt=plotExt)
     except KeyError as e:
         print(e)
         print('\tSkipped plotPhotometryErrorModel')
@@ -428,7 +431,8 @@ def plot_metrics(job, filterName, outputPrefix=''):
         matchedDataset = am1.blobs['MatchedMultiVisitDataset']
         astromModel = am1.blobs['AnalyticAstrometryModel']
         plotAstrometryErrorModel(matchedDataset, astromModel,
-                                 outputPrefix=outputPrefix)
+                                 outputPrefix=outputPrefix,
+                                 showTitle=showTitle, plotExt=plotExt)
     except KeyError as e:
         print(e)
         print('\tSkipped plotAstrometryErrorModel')

@@ -90,7 +90,8 @@ def plotOutlinedAxline(axMethod, x, **kwargs):
     axMethod(x, **foregroundArgs)
 
 
-def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
+def plotAstrometryErrorModel(dataset, astromModel, outputPrefix='',
+                             showTitle=True, plotExt='png'):
     """Plot angular distance between matched sources from different exposures.
 
     Creates a file containing the plot with a filename beginning with
@@ -171,12 +172,13 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
         color=color['bright'])
 
     # Using title rather than suptitle because I can't get the top padding
-    plt.suptitle("Astrometry Check : %s" % outputPrefix,
-                 fontsize=30)
-    ext = 'png'
+    if showTitle:
+        plt.suptitle("Astrometry Check : %s" % outputPrefix,
+                     fontsize=30)
+
     pathFormat = "{name}.{ext}"
-    plotPath = makeFilename(outputPrefix, pathFormat, name="check_astrometry", ext=ext)
-    plt.savefig(plotPath, format=ext)
+    plotPath = makeFilename(outputPrefix, pathFormat, name="check_astrometry", ext=plotExt)
+    plt.savefig(plotPath, format=plotExt)
     plt.close(fig)
     print("Wrote plot:", plotPath)
 
@@ -273,7 +275,8 @@ def plotPhotErrModelFit(mag, mmag_err, photomModel, color='red', ax=None,
 
 
 def plotPhotometryErrorModel(dataset, photomModel,
-                             filterName='', outputPrefix=''):
+                             filterName='', outputPrefix='',
+                             showTitle=True, plotExt='png'):
     """Plot photometric RMS for matched sources.
 
     Parameters
@@ -325,9 +328,12 @@ def plotPhotometryErrorModel(dataset, photomModel,
             v=bright_mmagrms_median))
 
     ax[0][0].set_ylim([0, 500])
-    ax[0][0].set_ylabel("{magrms.label} [{mmagrms.unit:latex}]".format(
-        magrms=dataset['magrms'], mmagrms=mmagRms))
+    ax[0][0].set_ylabel("{label}) [{mmagrms.unit:latex}]".format(
+        label=dataset['magrms'].label.split('\n')[0], mmagrms=mmagRms))
     ax[0][0].legend(loc='upper right')
+    # HACK ALERT
+    ax[0][0].set_xlabel('#/bin')
+
     mag = dataset['mag'].quantity
     ax[0][1].scatter(mag, mmagRms,
                      s=10, color=color['all'], label='All')
@@ -410,17 +416,18 @@ def plotPhotometryErrorModel(dataset, photomModel,
                         photomModel, ax=ax[1][1])
     ax[1][1].legend(loc='upper left')
 
-    plt.suptitle("Photometry Check : %s" % outputPrefix,
-                 fontsize=30)
-    ext = 'png'
+    if showTitle:
+        plt.suptitle("Photometry Check : %s" % outputPrefix,
+                     fontsize=30)
+
     pathFormat = "{name}.{ext}"
-    plotPath = makeFilename(outputPrefix, pathFormat, name="check_photometry", ext=ext)
-    plt.savefig(plotPath, format=ext)
+    plotPath = makeFilename(outputPrefix, pathFormat, name="check_photometry", ext=plotExt)
+    plt.savefig(plotPath, format=plotExt)
     plt.close(fig)
     print("Wrote plot:", plotPath)
 
 
-def plotPA1(pa1, outputPrefix=""):
+def plotPA1(pa1, outputPrefix="", showTitle=True, plotExt='png'):
     """Plot the results of calculating the LSST SRC requirement PA1.
 
     Creates a file containing the plot with a filename beginning with
@@ -475,15 +482,16 @@ def plotPA1(pa1, outputPrefix=""):
         label.set_visible(False)
 
     plt.tight_layout()  # fix padding
-    ext = 'png'
+
     pathFormat = "{name}.{ext}"
-    plotPath = makeFilename(outputPrefix, pathFormat, name="PA1", ext=ext)
-    plt.savefig(plotPath, format=ext)
+    plotPath = makeFilename(outputPrefix, pathFormat, name="PA1", ext=plotExt)
+    plt.savefig(plotPath, format=plotExt)
     plt.close(fig)
     print("Wrote plot:", plotPath)
 
 
-def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix=""):
+def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix="",
+            showTitle=True, plotExt='png'):
     """Plot a histogram of the RMS in relative distance between pairs of
     stars.
 
@@ -561,7 +569,9 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix=""):
     title = '{metric} Astrometric Repeatability over {D.value:.0f}{D.unit:latex}'.format(
         metric=amx.datum.label,
         D=amx.extras['D'].quantity)
-    ax1.set_title(title)
+    if showTitle:
+        ax1.set_title(title)
+
     ax1.set_xlim(0.0, 100.0)
     ax1.set_xlabel(
         '{rmsDistMas.label} ({unit})'.format(
@@ -570,7 +580,6 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix=""):
 
     ax1.legend(loc='upper right', fontsize=16)
 
-    ext = 'png'
     pathFormat = '{metric}_D_{D:d}_{Dunits}_' + \
         '{magBright.value}_{magFaint.value}_{magFaint.unit}.{ext}'
     plotPath = makeFilename(outputPrefix,
@@ -580,15 +589,16 @@ def plotAMx(job, amx, afx, filterName, amxSpecName='design', outputPrefix=""):
                             Dunits=amx.extras['D'].quantity.unit,
                             magBright=magRange[0],
                             magFaint=magRange[1],
-                            ext=ext)
+                            ext=plotExt)
 
     plt.tight_layout()  # fix padding
-    plt.savefig(plotPath, dpi=300, format=ext)
+    plt.savefig(plotPath, dpi=300, format=plotExt)
     plt.close(fig)
     print("Wrote plot:", plotPath)
 
 
-def plotTEx(job, tex, filterName, texSpecName='design', outputPrefix=''):
+def plotTEx(job, tex, filterName, texSpecName='design', outputPrefix='',
+            showTitle=True, plotExt='png'):
     """Plot TEx correlation function measurements and thresholds.
 
     Parameters
@@ -653,7 +663,9 @@ def plotTEx(job, tex, filterName, texSpecName='design', outputPrefix=''):
     title = titleTemplate.format(metric=tex.datum.label,
                                  bin_range_operator=bin_range_operator,
                                  D=D)
-    ax1.set_title(title)
+    if showTitle:
+        ax1.set_title(title)
+
     ax1.set_xlim(0.0, 20.0)
     ax1.set_xlabel(
         '{radius.label} ({unit})'.format(
@@ -662,16 +674,15 @@ def plotTEx(job, tex, filterName, texSpecName='design', outputPrefix=''):
 
     ax1.legend(loc='upper right', fontsize=16)
 
-    ext = 'png'
-    pathFormat = '{metric}_D_{D:d}_{Dunits}.{ext}'
+    pathFormat = '{metric}_D_{D:d}_{Dunits}.{plotExt}'
     plotPath = makeFilename(outputPrefix,
                             pathFormat,
                             metric=tex.datum.label,
                             D=int(D.value),
                             Dunits=D.unit,
-                            ext=ext)
+                            ext=plotExt)
 
     plt.tight_layout()  # fix padding
-    plt.savefig(plotPath, dpi=300, ext=ext)
+    plt.savefig(plotPath, dpi=300, ext=plotExt)
     plt.close(fig)
     print("Wrote plot:", plotPath)

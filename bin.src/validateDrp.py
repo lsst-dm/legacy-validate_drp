@@ -68,9 +68,14 @@ if __name__ == "__main__":
                         help='Name of the repository with YAML definitions of LPM-17 metrics.')
     parser.add_argument('--verbose', '-v', default=False, action='store_true',
                         help='Display additional information about the analysis.')
+    parser.add_argument('--notitle', dest='showTitle',
+                        default=True, action='store_false',
+                        help='Skip titles on plots for cleaner figures.')
     parser.add_argument('--noplot', dest='makePlot',
                         default=True, action='store_false',
                         help='Skip making plots of performance.')
+    parser.add_argument('--plotext', dest='plotExt', default='png',
+                        help='Plot file extension name.  E.g., "png", "pdf", "svg".')
     parser.add_argument('--level', type=str, default='design',
                         help='Level of SRD requirement to meet: "minimum", "design", "stretch"')
 
@@ -100,5 +105,7 @@ if __name__ == "__main__":
     kwargs['makePlot'] = args.makePlot
     kwargs['level'] = args.level
     kwargs['outputPrefix'] = args.outputPrefix
+    kwargs['showTitle'] = args.showTitle
+    kwargs['plotExt'] = args.plotExt
 
     validate.run(args.repo, **kwargs)
