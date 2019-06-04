@@ -263,8 +263,8 @@ def calcRmsDistanceForOneObject(visit1, ra1, dec1, visit2, ra2, dec2,
     0.0
 
     Should return None
-    >>> visit1, ra1, dec1 = [1], [10.12344], [0, 0]
-    >>> visit2, ra2, dec2 = [1], [20.00000], [0, 0]
+    >>> visit1, ra1, dec1 = [1], [10.12344], [0]
+    >>> visit2, ra2, dec2 = [1], [20.00000], [0]
     >>> r = calcRmsDistanceForOneObject(visit1, ra1, dec1, visit2, ra2, dec2)
     >>> print(r)
     None
