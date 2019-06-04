@@ -194,11 +194,16 @@ def calcRmsDistances(groupView, annulus, magRange, verbose=False):
 
     rmsDistances = list()
     for obj1, (ra1, dec1, visit1) in enumerate(zip(meanRa, meanDec, visit)):
-        dist = sphDist(ra1, dec1, meanRa[obj1+1:], meanDec[obj1+1:])
+        searchVisit = visit[obj1+1:]
+        searchRa, searchDec = meanRa[obj1+1:], meanDec[obj1+1:]
+        dist = sphDist(ra1, dec1, searchRa, searchDec)
         objectsInAnnulus, = np.where((annulusRadians[0] <= dist) &
                                      (dist < annulusRadians[1]))
         for obj2 in objectsInAnnulus:
-            rmsDist = calcRmsDistanceForOneObject(visit, ra, dec, obj1, obj2)
+            visit2 = searchVisit[obj2]
+            ra2, dec2 = searchRa[obj2], searchDec[obj2]
+            rmsDist = calcRmsDistanceForOneObject(visit1, ra1, dec1,
+                                                  visit2, ra2, dec2)
             if rmsDist is None:
                 if verbose:
                     print("No matching visits found for objs: %d and %d" % (obj1, obj2))
