@@ -545,19 +545,16 @@ def loadRunList(configFile):
     data = yaml.load(stream)
 
     ccdKeyName = getCcdKeyName(data)
-    runList = constructRunList(data['filter'], data['visits'],
-                               data[ccdKeyName], ccdKeyName=ccdKeyName)
+    runList = constructRunList(data['visits'], data[ccdKeyName], ccdKeyName=ccdKeyName)
 
     return runList
 
 
-def constructRunList(filter, visits, ccds, ccdKeyName='ccd'):
+def constructRunList(visits, ccds, ccdKeyName='ccd'):
     """Construct a comprehensive runList for processCcd.py.
 
     Parameters
     ----------
-    filter : `str` or `list`
-        The desired filters.
     visits : `list` of `int`
         The desired visits.
     ccds : `list` of `int`
@@ -570,10 +567,10 @@ def constructRunList(filter, visits, ccds, ccdKeyName='ccd'):
 
     Examples
     --------
-    >>> runList = constructRunList([100, 200], 'r', [10, 11, 12])
+    >>> runList = constructRunList([100, 200], [10, 11, 12])
     >>> print(runList)
     ['--id visit=100 ccd=10^11^12', '--id visit=200 ccd=10^11^12']
-    >>> runList = constructRunList([100, 200], 'r', [10, 11, 12], ccdKeyName='ccdnum')
+    >>> runList = constructRunList([100, 200], [10, 11, 12], ccdKeyName='ccdnum')
     >>> print(runList)
     ['--id visit=100 ccdnum=10^11^12', '--id visit=200 ccdnum=10^11^12']
 
