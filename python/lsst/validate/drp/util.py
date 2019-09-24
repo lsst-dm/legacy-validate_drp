@@ -27,7 +27,7 @@ import yaml
 
 import lsst.daf.persistence as dafPersist
 import lsst.pipe.base as pipeBase
-import lsst.afw.geom as afwGeom
+import lsst.geom as geom
 
 
 def ellipticity_from_cat(cat, slot_shape='slot_Shape'):
@@ -110,11 +110,11 @@ def averageRaDec(ra, dec):
     """
     assert(len(ra) == len(dec))
 
-    angleRa = [afwGeom.Angle(r, afwGeom.radians) for r in ra]
-    angleDec = [afwGeom.Angle(d, afwGeom.radians) for d in dec]
-    coords = [afwGeom.SpherePoint(ar, ad, afwGeom.radians) for (ar, ad) in zip(angleRa, angleDec)]
+    angleRa = [geom.Angle(r, geom.radians) for r in ra]
+    angleDec = [geom.Angle(d, geom.radians) for d in dec]
+    coords = [geom.SpherePoint(ar, ad, geom.radians) for (ar, ad) in zip(angleRa, angleDec)]
 
-    meanRa, meanDec = afwGeom.averageSpherePoint(coords)
+    meanRa, meanDec = geom.averageSpherePoint(coords)
 
     return meanRa.asRadians(), meanDec.asRadians()
 
@@ -161,7 +161,7 @@ def positionRms(ra_avg, dec_avg, ra, dec):
     # We've already taken out the average,
     #   so we want the sqrt of the mean of the squares.
     pos_rms_rad = np.sqrt(np.mean(separations**2))  # radians
-    pos_rms_mas = afwGeom.radToMas(pos_rms_rad)  # milliarcsec
+    pos_rms_mas = geom.radToMas(pos_rms_rad)  # milliarcsec
 
     return pos_rms_mas
 
@@ -207,8 +207,8 @@ def sphDist(ra1, dec1, ra2, dec2):
 
     # This will also work, but must run separately for each element
     # whereas the numpy version will run on either scalars or arrays:
-    #   sp1 = afwGeom.SpherePoint(ra1, dec1, afwGeom.radians)
-    #   sp2 = afwGeom.SpherePoint(ra2, dec2, afwGeom.radians)
+    #   sp1 = geom.SpherePoint(ra1, dec1, geom.radians)
+    #   sp2 = geom.SpherePoint(ra2, dec2, geom.radians)
     #   return sp1.separation(sp2).asRadians()
 
     return dist

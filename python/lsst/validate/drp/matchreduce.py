@@ -28,7 +28,7 @@ import astropy.units as u
 from sqlalchemy.exc import OperationalError
 import sqlite3
 
-import lsst.afw.geom as afwGeom
+import lsst.geom as geom
 import lsst.daf.persistence as dafPersist
 from lsst.afw.table import (SourceCatalog, SchemaMapper, Field,
                             MultiMatch, SimpleRecord, GroupView,
@@ -55,7 +55,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     dataIds : `list` of `dict`
         List of `butler` data IDs of Image catalogs to compare to reference.
         The `calexp` cpixel image is needed for the photometric calibration.
-    matchRadius :  afwGeom.Angle(), optional
+    matchRadius :  geom.Angle(), optional
         Radius for matching. Default is 1 arcsecond.
     safeSnr : `float`, optional
         Minimum median SNR for a match to be considered "safe".
@@ -109,7 +109,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     blob = Blob('MatchedMultiVisitDataset')
 
     if not matchRadius:
-        matchRadius = afwGeom.Angle(1, afwGeom.arcseconds)
+        matchRadius = geom.Angle(1, geom.arcseconds)
 
     # Extract single filter
     blob['filterName'] = Datum(quantity=set([dId['filter'] for dId in dataIds]).pop(),
@@ -143,7 +143,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         List of `butler` data IDs of Image catalogs to compare to
         reference. The `calexp` cpixel image is needed for the photometric
         calibration.
-    matchRadius :  afwGeom.Angle(), optional
+    matchRadius :  geom.Angle(), optional
         Radius for matching. Default is 1 arcsecond.
     useJointCal : `bool`, optional
         Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
