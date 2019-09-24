@@ -35,7 +35,8 @@ def ellipticity_from_cat(cat, slot_shape='slot_Shape'):
 
     Parameters
     ----------
-    cat : An afwtable catalog with 'slot_Shape' defined and '_xx', '_xy', '_yy'
+    cat : `lsst.afw.table.BaseCatalog`
+       A catalog with 'slot_Shape' defined and '_xx', '_xy', '_yy'
        entries for the target of 'slot_Shape'.
        E.g., 'slot_shape' defined as 'base_SdssShape'
        And 'base_SdssShape_xx', 'base_SdssShape_xy', 'base_SdssShape_yy' defined.
@@ -58,7 +59,7 @@ def ellipticity_from_shape(shape):
 
     Parameters
     ----------
-    shape : geom::ellipses::Quadrupole
+    shape : `lsst.afw.geom.ellipses.Quadrupole`
         The LSST generic shape object returned by psf.computeShape()
         or source.getShape() for a specific source.
         Imeplementation: just needs to have .getIxx, .getIxy, .getIyy methods
@@ -78,9 +79,9 @@ def ellipticity(i_xx, i_xy, i_yy):
 
     Parameters
     ----------
-    i_xx : float or numpy.array
-    i_xy : float or numpy.array
-    i_yy : float or numpy.array
+    i_xx : float or `numpy.array`
+    i_xy : float or `numpy.array`
+    i_yy : float or `numpy.array`
 
     Returns
     -------
@@ -98,9 +99,9 @@ def averageRaDec(ra, dec):
 
     Parameters
     ----------
-    ra : list of float
+    ra : `list` [`float`]
         RA in [radians]
-    dec : list of float
+    dec : `list` [`float`]
         Dec in [radians]
 
     Returns
@@ -126,36 +127,44 @@ def averageRaDecFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'coord_ra', 'coord_dec' that returns radians.
+    cat : collection
+         Object with .get method for 'coord_ra', 'coord_dec' that returns radians.
 
     Returns
     -------
-    float, float
-       meanRa, meanDec -- Tuple of average RA, Dec [radians]
+    ra_mean : `float`
+        Mean RA in radians.
+    dec_mean : `float`
+        Mean Dec in radians.
     """
     return averageRaDec(cat.get('coord_ra'), cat.get('coord_dec'))
 
 
-def positionRms(ra_avg, dec_avg, ra, dec):
-    """Calculate the RMS between RA_avg, Dec_avg and RA, Dec
+def positionRms(ra_mean, dec_mean, ra, dec):
+    """Calculate the RMS between an array of coordinates and a reference (mean) position.
 
     Parameters
     ----------
-    ra_avg -- Average RA  [rad]
-    dec_avg -- Average Dec [rad]
-    ra -- np.array of RA  [rad]
-    dec -- np.array of Dec  [rad]
+    ra_mean : `float`
+        Mean RA in radians.
+    dec_mean : `float`
+        Mean Dec in radians.
+    ra : `numpy.array` [`float`]
+        Array of RA in radians.
+    dec : `numpy.array` [`float`]
+        Array of Dec in radians.
 
     Returns
     -------
-    pos_rms -- RMS of positions in milliarcsecond.  Float.
+    pos_rms : `float`
+        RMS scatter of positions in milliarcseconds.
 
-
+    Notes
+    -----
     The RMS of a single-element array will be returned as 0.
     The RMS of an empty array will be returned as NaN.
     """
-    separations = sphDist(ra_avg, dec_avg, ra, dec)
+    separations = sphDist(ra_mean, dec_mean, ra, dec)
     # Note we don't want `np.std` of separations, which would give us the
     #   std around the average of separations.
     # We've already taken out the average,
@@ -171,22 +180,32 @@ def positionRmsFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'coord_ra', 'coord_dec' that returns radians.
+    cat : collection
+         Object with .get method for 'coord_ra', 'coord_dec' that returns radians.
 
     Returns
     -------
-    pos_rms -- RMS of positions in milliarcsecond.  Float.
+    pos_rms : `float`
+        RMS scatter of positions in milliarcseconds.
     """
     ra_avg, dec_avg = averageRaDecFromCat(cat)
     ra, dec = cat.get('coord_ra'), cat.get('coord_dec')
     return positionRms(ra_avg, dec_avg, ra, dec)
 
 
-def sphDist(ra1, dec1, ra2, dec2):
+def sphDist(ra_mean, dec_mean, ra, dec):
     """Calculate distance on the surface of a unit sphere.
 
-    Input and Output are in radians.
+    Parameters
+    ----------
+    ra_mean : `float`
+        Mean RA in radians.
+    dec_mean : `float`
+        Mean Dec in radians.
+    ra : `numpy.array` [`float`]
+        Array of RA in radians.
+    dec : `numpy.array` [`float`]
+        Array of Dec in radians.
 
     Notes
     -----
@@ -196,10 +215,10 @@ def sphDist(ra1, dec1, ra2, dec2):
     differences that we're looking at here.
     """
     # Haversine
-    dra = ra1-ra2
-    ddec = dec1-dec2
+    dra = ra - ra_mean
+    ddec = dec - dec_mean
     a = np.square(np.sin(ddec/2)) + \
-        np.cos(dec1)*np.cos(dec2)*np.square(np.sin(dra/2))
+        np.cos(dec_mean)*np.cos(dec)*np.square(np.sin(dra/2))
     dist = 2 * np.arcsin(np.sqrt(a))
 
     # This is what the law of cosines would look like
@@ -227,13 +246,13 @@ def averageRaFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'coord_ra', 'coord_dec' that returns radians.
+    cat : collection
+         Object with .get method for 'coord_ra', 'coord_dec' that returns radians.
 
     Returns
     -------
-    float
-        Average right ascension [radians]
+    ra_mean : `float`
+        Mean RA in radians.
     """
     meanRa, meanDec = averageRaDecFromCat(cat)
     return meanRa
@@ -252,13 +271,13 @@ def averageDecFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'coord_ra', 'coord_dec' that returns radians.
+    cat : collection
+         Object with .get method for 'coord_ra', 'coord_dec' that returns radians.
 
     Returns
     -------
-    float
-        Average right ascension [radians]
+    dec_mean : `float`
+        Mean Dec in radians.
     """
     meanRa, meanDec = averageRaDecFromCat(cat)
     return meanDec
@@ -275,13 +294,15 @@ def medianEllipticityResidualsFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'e1', 'e2' that returns radians.
+    cat : collection
+         Object with .get method for 'e1', 'e2' that returns radians.
 
     Returns
     -------
-    float, float
-        median real ellipticity residual, median imaginary ellipticity residual
+    e1_median : `float`
+        Median real ellipticity residual.
+    e2_median : `float`
+        Median imaginary ellipticity residual.
     """
     e1_median = np.median(cat.get('e1') - cat.get('psf_e1'))
     e2_median = np.median(cat.get('e2') - cat.get('psf_e2'))
@@ -293,13 +314,13 @@ def medianEllipticity1ResidualsFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'e1', 'e2' that returns radians.
+    cat : collection
+         Object with .get method for 'e1', 'psf_e1' that returns radians.
 
     Returns
     -------
-    float
-        median real ellipticity residual
+    e1_median : `float`
+        Median imaginary ellipticity residual.
     """
     e1_median = np.median(cat.get('e1') - cat.get('psf_e1'))
     return e1_median
@@ -310,45 +331,62 @@ def medianEllipticity2ResidualsFromCat(cat):
 
     Parameters
     ----------
-    cat -- collection with a .get method
-         for 'e1', 'e2' that returns radians.
+    cat : collection
+         Object with .get method for 'e2', 'psf_e2' that returns radians.
 
     Returns
     -------
-    float
-        median imaginary ellipticity residual
+    e2_median : `float`
+        Median imaginary ellipticity residual.
     """
     e2_median = np.median(cat.get('e2') - cat.get('psf_e2'))
     return e2_median
 
 
-def getCcdKeyName(dataid):
+def getCcdKeyName(dataId):
     """Return the key in a dataId that's referring to the CCD or moral equivalent.
 
     Parameters
     ----------
-    dataid : dict
+    dataId : `dict`
         A dictionary that will be searched for a key that matches
         an entry in the hardcoded list of possible names for the CCD field.
 
+    Returns
+    -------
+    name : `str`
+        The name of the key.
+
     Notes
     -----
-    Motiviation: Different camera mappings use different keys to indicate
+    Motivation: Different camera mappings use different keys to indicate
       the different amps/ccds in the same exposure.  This function looks
       through the reference dataId to locate a field that could be the one.
     """
     possibleCcdFieldNames = ['detector', 'ccd', 'ccdnum', 'camcol', 'sensor']
 
     for name in possibleCcdFieldNames:
-        if name in dataid:
+        if name in dataId:
             return name
     else:
         return 'ccd'
 
 
-def raftSensorToInt(vId):
+def raftSensorToInt(visitId):
     """Construct an int that encodes raft, sensor coordinates.
 
+    Parameters
+    ----------
+    visitId : `dict`
+        A dictionary containing raft and sensor keys.
+
+    Returns
+    -------
+    id : `int`
+        The integer id of the raft/sensor.
+
+    Examples
+    --------
     >>> vId = {'filter': 'y', 'raft': '2,2', 'sensor': '1,2', 'visit': 307}
     >>> raftSensorToInt(vId)
     2212
@@ -357,13 +395,23 @@ def raftSensorToInt(vId):
         x, y = tuple_string.split(',')
         return 10 * int(x) + 1 * int(y)
 
-    raft_int = pair_to_int(vId['raft'])
-    sensor_int = pair_to_int(vId['sensor'])
+    raft_int = pair_to_int(visitId['raft'])
+    sensor_int = pair_to_int(visitId['sensor'])
     return 100*raft_int + sensor_int
 
 
 def repoNameToPrefix(repo):
     """Generate a base prefix for plots based on the repo name.
+
+    Parameters
+    ----------
+    repo : `str`
+        The repo path.
+
+    Returns
+    -------
+    repo_base : `str`
+        The base prefix for the repo.
 
     Examples
     --------
@@ -381,8 +429,8 @@ def repoNameToPrefix(repo):
     'bar_foo'
     """
 
-    baserepo, ext = os.path.splitext(repo)
-    return baserepo.lstrip('.').strip(os.sep).replace(os.sep, "_")
+    repo_base, ext = os.path.splitext(repo)
+    return repo_base.lstrip('.').strip(os.sep).replace(os.sep, "_")
 
 
 def discoverDataIds(repo, **kwargs):
@@ -390,12 +438,12 @@ def discoverDataIds(repo, **kwargs):
 
     Parameters
     ----------
-    repo : str
+    repo : `str`
         Path of a repository with 'src' entries.
 
     Returns
     -------
-    list
+    dataIds : `list`
         dataIds in the butler that exist.
 
     Notes
@@ -423,15 +471,15 @@ def loadParameters(configFile):
 
     Parameters
     ----------
-    configFile : str
+    configFile : `str`
         YAML file that stores visit, filter, ccd,
         good_mag_limit, medianAstromscatterRef, medianPhotoscatterRef, matchRef
         and other parameters
 
     Returns
     -------
-    pipeBase.Struct
-        with configuration parameters
+    pipeStruct: `lsst.pipe.base.Struct`
+        Struct with configuration parameters.
     """
     with open(configFile, mode='r') as stream:
         data = yaml.load(stream)
@@ -444,17 +492,15 @@ def loadDataIdsAndParameters(configFile):
 
     Parameters
     ----------
-    configFile : str
+    configFile : `str`
         YAML file that stores visit, filter, ccd,
         and additional configuration parameters such as
         brightSnr, medianAstromscatterRef, medianPhotoscatterRef, matchRef
 
     Returns
     -------
-    pipeBase.Struct
-        with attributes of
-        dataIds - dict
-        and configuration parameters
+    pipeStruct: `lsst.pipe.base.Struct`
+        Struct with attributes of dataIds - dict and configuration parameters.
     """
     parameters = loadParameters(configFile).getDict()
 
@@ -476,18 +522,18 @@ def constructDataIds(filters, visits, ccds, ccdKeyName='ccd'):
 
     Parameters
     ----------
-    filters : str or list
+    filters : `str` or `list` [`str`]
         If str, will be interpreted as one filter to be applied to all visits.
-    visits : list of int
-    ccds : list of int
-    ccdKeyName : str, optional
+    visits : `list` [`int`]
+    ccds : `list` [`int`]
+    ccdKeyName : `str`, optional
         Name to distinguish different parts of a focal plane.
         Generally 'ccd', but might be 'ccdnum', or 'amp', or 'ccdamp'.
         Refer to your `obs_*/policy/*Mapper.paf`.
 
     Returns
     -------
-    list
+    dataIds : `list`
         dataIDs suitable to be used with the LSST Butler.
 
     Examples
@@ -517,12 +563,12 @@ def loadRunList(configFile):
 
     Parameters
     ----------
-    configFile : str
+    configFile : `str`
         YAML file that stores visit, filter, ccd,
 
     Returns
     -------
-    list
+    runList : `list`
         run list lines.
 
     Examples

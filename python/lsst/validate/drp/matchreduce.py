@@ -49,13 +49,13 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
     Parameters
     ----------
-    repo : `str` or `Butler`
+    repo : `str` or `lsst.daf.persistence.Butler`
         A Butler instance or a repository URL that can be used to construct
         one.
     dataIds : `list` of `dict`
         List of `butler` data IDs of Image catalogs to compare to reference.
         The `calexp` cpixel image is needed for the photometric calibration.
-    matchRadius :  geom.Angle(), optional
+    matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
     safeSnr : `float`, optional
         Minimum median SNR for a match to be considered "safe".
@@ -133,30 +133,32 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
 def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
                           useJointCal=False, skipTEx=False):
-    """Load data from specific visit. Match with reference.
+    """Load data from specific visits and returned a calibrated catalog matched
+    with a reference.
 
     Parameters
     ----------
-    repo : string or Butler
-        A Butler or a repository URL that can be used to construct one
+    repo : `str` or `lsst.daf.persistence.Butler`
+        A Butler or a repository URL that can be used to construct one.
     dataIds : list of dict
-        List of `butler` data IDs of Image catalogs to compare to
-        reference. The `calexp` cpixel image is needed for the photometric
+        List of butler data IDs of Image catalogs to compare to
+        reference. The calexp cpixel image is needed for the photometric
         calibration.
-    matchRadius :  geom.Angle(), optional
+    matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
     useJointCal : `bool`, optional
-        Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
+        Use jointcal outputs to calibrate positions and fluxes instead of
+        meas_mosaic.
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
 
     Returns
     -------
-    catalog_list : afw.table.SourceCatalog
-        List of all of the catalogs
-    matched_catalog : afw.table.GroupView
-        An object of matched catalog.
+    catalog : `lsst.afw.table.SourceCatalog`
+        A new calibrated SourceCatalog.
+    matches : `lsst.afw.table.GroupView`
+        An GroupView of the matched sources.
     """
     # Following
     # https://github.com/lsst/afw/blob/tickets/DM-3896/examples/repeatability.ipynb
@@ -299,9 +301,9 @@ def _reduceStars(blob, allMatches, safeSnr=50.0):
 
     Parameters
     ----------
-    allMatches : afw.table.GroupView
+    allMatches : `lsst.afw.table.GroupView`
         GroupView object with matches.
-    safeSnr : float, optional
+    safeSnr : `float`, optional
         Minimum median SNR for a match to be considered "safe".
     """
     # Filter down to matches with at least 2 sources and good flags
