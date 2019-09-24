@@ -2,18 +2,18 @@
 
 set -e
 
-PRODUCT_DIR=${VALIDATE_DRP_DIR}
+PRODUCT_DIR="${VALIDATE_DRP_DIR}"
 if [[ ${PRODUCT_DIR} == '' ]]; then
     PRODUCT_DIR='.'
 fi
-VALIDATION_DATA_DIR="$VALIDATION_DATA_HSC_DIR/raw"
-PHOTOMETRIC_REF_CAT_DIR="$VALIDATION_DATA_HSC_DIR/ref_cats"
-CALIB_DATA="$VALIDATION_DATA_HSC_DIR/CALIB"
+VALIDATION_DATA_DIR="${VALIDATION_DATA_HSC_DIR}/raw"
+#  "ps1_pv3_3pi_20170110" and "sdss-dr9-fink-v5b" are stored in a separate folder in validation_data_hsc.
+PHOTOMETRIC_REF_CAT_DIR="${VALIDATION_DATA_HSC_DIR}/ref_cats"
+CALIB_DATA="${VALIDATION_DATA_HSC_DIR}/CALIB"
 
 CAMERA=Hsc
 CONFIG_FILE="${PRODUCT_DIR}/config/hscConfig.py"
 MAPPER=lsst.obs.hsc.HscMapper
-ASTROMDIR=sdss-dr9-fink-v5b
 
 print_error() {
     >&2 echo "$@"
@@ -29,14 +29,16 @@ usage() {
     print_error "Specifc options:"
     print_error "   -P          Skip processing?"
     print_error "   -V          Skip verification?"
+    print_error "   -f          Config file path"
     print_error "   -h          show this message"
     exit 1
 }
 
-while getopts "VP" option; do
+while getopts "VPf:h" option; do
     case "$option" in
         P)  DOPROCESS=false;;
         V)  DOVERIFY=false;;
+        f)  CONFIG_FILE="$OPTARG";;
         h)  usage;;
         *)  usage;;
     esac

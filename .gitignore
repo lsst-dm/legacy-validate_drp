@@ -1,7 +1,9 @@
-CFHT/
-DECam/
-CFHT
-DECam
+Cfht/
+CfhtQuick/
+Decam/
+DecamQuick/
+Hsc/
+HscQuick/
 _build*
 *.log
 *.json
