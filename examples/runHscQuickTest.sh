@@ -6,10 +6,10 @@ PRODUCT_DIR="${VALIDATE_DRP_DIR}"
 if [[ ${PRODUCT_DIR} == '' ]]; then
     PRODUCT_DIR='.'
 fi
-VALIDATION_DATA_DIR="${CI_HSC_DIR}/raw"
-#  "ps1_pv3_3pi_20170110" is stored at the base level in ci_hsc.
-PHOTOMETRIC_REF_CAT_DIR="${CI_HSC_DIR}"
-CALIB_DATA="${CI_HSC_DIR}/CALIB"
+VALIDATION_DATA_DIR="${TESTDATA_CI_HSC_DIR}/raw"
+#  "ps1_pv3_3pi_20170110" is stored at the base level in testdata_ci_hsc.
+PHOTOMETRIC_REF_CAT_DIR="${TESTDATA_CI_HSC_DIR}"
+CALIB_DATA="${TESTDATA_CI_HSC_DIR}/CALIB"
 
 CAMERA=HscQuick
 CONFIG_FILE="${PRODUCT_DIR}/config/hscConfig.py"

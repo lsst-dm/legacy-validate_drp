@@ -158,7 +158,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     catalog : `lsst.afw.table.SourceCatalog`
         A new calibrated SourceCatalog.
     matches : `lsst.afw.table.GroupView`
-        An GroupView of the matched sources.
+        A GroupView of the matched sources.
     """
     # Following
     # https://github.com/lsst/afw/blob/tickets/DM-3896/examples/repeatability.ipynb

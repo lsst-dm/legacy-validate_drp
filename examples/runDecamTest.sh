@@ -52,7 +52,7 @@ if [[ $DOPROCESS == true ]]; then
         -i ingestImagesDecam.py
 fi
 
-if [[ $DOVERIFY = true ]]; then
+if [[ $DOVERIFY == true ]]; then
     "${PRODUCT_DIR}/examples/validateRepo.sh" \
         -c "$CAMERA" \
         -- "$@"
