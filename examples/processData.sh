@@ -22,7 +22,6 @@ usage() {
     print_error "   -i          Ingest script"
     print_error "   -o          Extra options for ingest script"
     print_error "   -e          Extension to ingest"
-    print_error "   -a          Name of astrometry to load"
     print_error "   -r          Reduce from raw?  Implies there is a CALIB directory"
     print_error "   -d          Path to calibs"
     print_error "   -h          show this message"
