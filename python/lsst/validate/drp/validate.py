@@ -546,7 +546,7 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     for spec_key in spec_set:
                         if specName in spec_key.metric:  # For dependent metrics
                             spec = job.specs[spec_key]
-                if not spec.check(m.quantity):
+                if spec is not None and not spec.check(m.quantity):
                     failCount += 1
 
             if specName == default_level:
