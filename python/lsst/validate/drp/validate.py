@@ -535,7 +535,9 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     continue
                 measurementCount += 1
                 metric = key.metric.split("_")[0]  # For compound metrics
-                spec_set = specs[metric]
+                spec_set = specs.get(metric, None)
+                if spec_set is None:
+                    continue
                 spec = None
                 for spec_key in spec_set:
                     if specName in spec_key.spec:
