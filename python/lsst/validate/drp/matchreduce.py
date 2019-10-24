@@ -41,8 +41,8 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
 
 
 def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
-                          useJointCal=False, skipTEx=False):
-    """Construct a container for matched star catalogs from multple visits, with filtering,
+                          useJointCal=False, skipTEx=False, skipGalaxies=False):
+    """Construct a container for matched star catalogs from multiple visits, with filtering,
     summary statistics, and modelling.
 
     `lsst.verify.Blob` instances are serializable to JSON.
@@ -64,6 +64,8 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
+    skipGalaxies : `bool`, optional
+        Skip anything related to galaxy model outputs ("slot_modelFlux").
 
     Attributes of returned Blob
     ----------
@@ -122,18 +124,18 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     # Match catalogs across visits
     blob._catalog, blob._matchedCatalog = \
         _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                              useJointCal=useJointCal, skipTEx=skipTEx)
+                              useJointCal=useJointCal, skipTEx=skipTEx, skipGalaxies=skipGalaxies)
 
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
     # These are the serialiable attributes of this class.
-    _reduceStars(blob, blob._matchedCatalog, safeSnr)
+    _reduceSources(blob, blob._matchedCatalog, safeSnr)
     return blob
 
 
 def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                          useJointCal=False, skipTEx=False):
-    """Load data from specific visits and returned a calibrated catalog matched
+                          useJointCal=False, skipTEx=False, skipGalaxies=False):
+    """Load data from specific visits and return a calibrated catalog matched
     with a reference.
 
     Parameters
@@ -152,6 +154,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
+    skipGalaxies : `bool`, optional
+        Skip anything related to galaxy model outputs ("slot_modelFlux").
 
     Returns
     -------
@@ -190,6 +194,17 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
                                        'PSF magnitude'))
     mapper.addOutputField(Field[float]('base_PsfFlux_magErr',
                                        'PSF magnitude uncertainty'))
+    if not skipGalaxies:
+        # Needed because addOutputField(... 'slot_ModelFlux_mag') will add a field with that literal name
+        aliasMap = schema.getAliasMap()
+        # Possibly not needed since base_GaussianFlux is the default, but this ought to be safe
+        modelName = aliasMap['slot_ModelFlux'] if 'slot_ModelFlux' in aliasMap.keys() else 'base_GaussianFlux'
+        mapper.addOutputField(Field[float](f'{modelName}_mag',
+                                           'Model magnitude'))
+        mapper.addOutputField(Field[float](f'{modelName}_magErr',
+                                           'Model magnitude uncertainty'))
+        mapper.addOutputField(Field[float](f'{modelName}_snr',
+                                           'Model flux snr'))
     mapper.addOutputField(Field[float]('e1',
                                        'Source Ellipticity 1'))
     mapper.addOutputField(Field[float]('e2',
@@ -272,6 +287,10 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             for record in tmpCat:
                 record.updateCoord(wcs)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
+        if not skipGalaxies:
+            tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux'] /
+                                               tmpCat['slot_ModelFlux_instFluxErr'])
+            photoCalib.instFluxToMagnitude(tmpCat, "slot_ModelFlux", "slot_ModelFlux")
 
         if not skipTEx:
             _, psf_e1, psf_e2 = ellipticity_from_cat(oldSrc, slot_shape='slot_PsfShape')
@@ -295,7 +314,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     return srcVis, allMatches
 
 
-def _reduceStars(blob, allMatches, safeSnr=50.0):
+def _reduceSources(blob, allMatches, goodSnr=3.0, safeSnr=50.0, safeExtendedness=1.0, extended=False,
+                   nameFluxKey=None, goodSnrMax=np.Inf, safeSnrMax=np.Inf):
     """Calculate summary statistics for each star. These are persisted
     as object attributes.
 
@@ -303,65 +323,86 @@ def _reduceStars(blob, allMatches, safeSnr=50.0):
     ----------
     allMatches : `lsst.afw.table.GroupView`
         GroupView object with matches.
-    safeSnr : `float`, optional
-        Minimum median SNR for a match to be considered "safe".
+    goodSnr : float, optional
+        Minimum median SNR for a match to be considered "good"; default 3.
+    safeSnr : float, optional
+        Minimum median SNR for a match to be considered "safe"; default 50.
+    safeExtendedness: float, optional
+        Maximum (exclusive) extendedness for sources or minimum (inclusive) if extended==True.
+    extended: bool, optional
+        Whether to select extended sources, i.e. galaxies.
+    goodSnrMax : float, optional
+        Maximum median SNR for a match to be considered "good"; default np.Inf.
+    safeSnrMax : float, optional
+        Maximum median SNR for a match to be considered "safe"; default np.Inf.
     """
+    if nameFluxKey is None:
+        nameFluxKey = "slot_ModelFlux" if extended else "base_PsfFlux"
     # Filter down to matches with at least 2 sources and good flags
     flagKeys = [allMatches.schema.find("base_PixelFlags_flag_%s" % flag).key
                 for flag in ("saturated", "cr", "bad", "edge")]
     nMatchesRequired = 2
 
-    psfSnrKey = allMatches.schema.find("base_PsfFlux_snr").key
-    psfMagKey = allMatches.schema.find("base_PsfFlux_mag").key
-    psfMagErrKey = allMatches.schema.find("base_PsfFlux_magErr").key
+    snrKey = allMatches.schema.find(f"{nameFluxKey}_snr").key
+    magKey = allMatches.schema.find(f"{nameFluxKey}_mag").key
+    magErrKey = allMatches.schema.find(f"{nameFluxKey}_magErr").key
     extendedKey = allMatches.schema.find("base_ClassificationExtendedness_value").key
 
-    def goodFilter(cat, goodSnr=3):
+    snrMin, snrMax = goodSnr, goodSnrMax
+
+    def extendedFilter(cat):
         if len(cat) < nMatchesRequired:
             return False
         for flagKey in flagKeys:
             if cat.get(flagKey).any():
                 return False
-        if not np.isfinite(cat.get(psfMagKey)).all():
+        if not np.isfinite(cat.get(magKey)).all():
             return False
-        psfSnr = np.median(cat.get(psfSnrKey))
+        extendedness = cat.get(extendedKey)
+        return np.min(extendedness) >= safeExtendedness if extended else \
+            np.max(extendedness) < safeExtendedness
+
+    def snrFilter(cat):
         # Note that this also implicitly checks for psfSnr being non-nan.
-        return psfSnr >= goodSnr
+        snr = np.median(cat.get(snrKey))
+        return snrMax >= snr >= snrMin
 
-    goodMatches = allMatches.where(goodFilter)
+    def fullFilter(cat):
+        return extendedFilter(cat) and snrFilter(cat)
 
-    # Filter further to a limited range in S/N and extendedness
-    # to select bright stars.
-    safeMaxExtended = 1.0
-
-    def safeFilter(cat):
-        psfSnr = np.median(cat.get(psfSnrKey))
-        extended = np.max(cat.get(extendedKey))
-        return psfSnr >= safeSnr and extended < safeMaxExtended
-
-    safeMatches = goodMatches.where(safeFilter)
+    # If safeSnr range is a subset of goodSnr, it's safe to only filter on snr again
+    # Otherwise, filter on flags/extendedness first, then snr
+    isSafeSubset = goodSnrMax >= safeSnrMax and goodSnr <= safeSnr
+    goodMatches = allMatches.where(fullFilter) if isSafeSubset else allMatches.where(extendedFilter)
+    snrMin, snrMax = safeSnr, safeSnrMax
+    safeMatches = goodMatches.where(snrFilter)
+    if not isSafeSubset:
+        snrMin, snrMax = goodSnr, goodSnrMax
+        goodMatches = goodMatches.where(snrFilter)
 
     # Pass field=psfMagKey so np.mean just gets that as its input
+    typeMag = "model" if extended else "PSF"
     filter_name = blob['filterName']
-    blob['snr'] = Datum(quantity=goodMatches.aggregate(np.median, field=psfSnrKey) * u.Unit(''),
+    source_type = f'{"extended" if extended else "point"} sources"'
+    blob['snr'] = Datum(quantity=goodMatches.aggregate(np.median, field=snrKey) * u.Unit(''),
                         label='SNR({band})'.format(band=filter_name),
-                        description='Median signal-to-noise ratio of PSF magnitudes over '
-                                    'multiple visits')
-    blob['mag'] = Datum(quantity=goodMatches.aggregate(np.mean, field=psfMagKey) * u.mag,
+                        description=f'Median signal-to-noise ratio of {typeMag} magnitudes for {source_type}'
+                                    f' over multiple visits')
+    blob['mag'] = Datum(quantity=goodMatches.aggregate(np.mean, field=magKey) * u.mag,
                         label='{band}'.format(band=filter_name),
-                        description='Mean PSF magnitudes of stars over multiple visits')
-    blob['magrms'] = Datum(quantity=goodMatches.aggregate(np.std, field=psfMagKey) * u.mag,
+                        description=f'Mean of {typeMag} magnitudes for {source_type} over multiple visits')
+    blob['magrms'] = Datum(quantity=goodMatches.aggregate(np.std, field=magKey) * u.mag,
                            label='RMS({band})'.format(band=filter_name),
-                           description='RMS of PSF magnitudes over multiple visits')
-    blob['magerr'] = Datum(quantity=goodMatches.aggregate(np.median, field=psfMagErrKey) * u.mag,
+                           description=f'RMS of {typeMag} magnitudes for {source_type} over multiple visits')
+    blob['magerr'] = Datum(quantity=goodMatches.aggregate(np.median, field=magErrKey) * u.mag,
                            label='sigma({band})'.format(band=filter_name),
-                           description='Median 1-sigma uncertainty of PSF magnitudes over '
-                                       'multiple visits')
+                           description=f'Median 1-sigma uncertainty of {typeMag} magnitudes for {source_type}'
+                                       f' over multiple visits')
     # positionRmsFromCat knows how to query a group
     # so we give it the whole thing by going with the default `field=None`.
     blob['dist'] = Datum(quantity=goodMatches.aggregate(positionRmsFromCat) * u.milliarcsecond,
                          label='d',
-                         description='RMS of sky coordinates of stars over multiple visits')
+                         description=f'RMS of sky coordinates of {source_type} over multiple visits')
 
     # These attributes are not serialized
     blob.goodMatches = goodMatches

@@ -73,6 +73,8 @@ if __name__ == "__main__":
                         help='Skip making plots of performance.')
     parser.add_argument('--level', type=str, default='design',
                         help='Level of SRD requirement to meet: "minimum", "design", "stretch"')
+    parser.add_argument('--skipGalaxies', dest='skipGalaxies', default=False, action='store_true',
+                        help='Whether to skip measuring galaxy metrics')
 
     args = parser.parse_args()
 
@@ -100,5 +102,6 @@ if __name__ == "__main__":
     kwargs['makePlot'] = args.makePlot
     kwargs['level'] = args.level
     kwargs['outputPrefix'] = args.outputPrefix
+    kwargs['skipGalaxies'] = args.skipGalaxies
 
     validate.run(args.repo, **kwargs)
