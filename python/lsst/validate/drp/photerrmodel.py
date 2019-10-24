@@ -243,5 +243,5 @@ def _compute(blob, snr, mag, magErr, magRms, dist, nMatch,
         print(msg.format(blob['photScatter'].quantity.value, medianRef))
     if nMatch < matchRef:
         msg = 'Number of matched sources {0:d} is too small ' \
-              '(should be > %d)'
+              '(should be > {0:d})'
         print(msg.format(nMatch, matchRef))
