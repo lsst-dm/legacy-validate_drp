@@ -21,6 +21,7 @@
 import math
 
 import numpy as np
+import random
 import scipy.stats
 import astropy.units as u
 
@@ -280,39 +281,15 @@ def getRandomDiff(array):
     Parameters
     ----------
     array : `list` or `numpy.ndarray`
-        Input datset.
+        Input array.
 
     Returns
     -------
     float or int
         Difference between two random elements of the array.
-
-    Notes
-    -----
-
-    - As implemented the returned value is the result of subtracting
-      two elements of the input array.  In all of the imagined uses
-      that's going to be a scalar (float, maybe int).
-      In principle, however the code as implemented returns the result
-      of subtracting two elements of the array, which could be any
-      arbitrary object that is the result of the subtraction operator
-      applied to two elements of the array.
-
-    - This is not the most efficient way to extract a pair,
-      but it's the easiest to write.
-
-    - Shuffling works correctly for low N (even N=2), where a naive
-      random generation of entries would result in duplicates.
-
-    - In principle it might be more efficient to shuffle the indices,
-      then extract the difference.  But this probably only would make a
-      difference for arrays whose elements were objects that were
-      substantially larger than a float.  And that would only make
-      sense for objects that had a subtraction operation defined.
     """
-    copy = array.copy()
-    np.random.shuffle(copy)
-    return copy[0] - copy[1]
+    a, b = random.sample(range(len(array)), 2)
+    return array[a] - array[b]
 
 
 def computeWidths(array):
