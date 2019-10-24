@@ -28,6 +28,8 @@ import astropy.units as u
 import lsst.pipe.base as pipeBase
 from lsst.verify import Measurement, Datum
 
+thousandDivSqrtTwo = 1000/math.sqrt(2)
+
 
 def measurePA1(metric, matchedDataset, filterName, numRandomShuffles=50):
     """Measurement of the PA1 metric: photometric repeatability of
@@ -271,8 +273,7 @@ def getRandomDiffRmsInMmags(array):
     >>> print(rms)
     212.132034
     """
-    # For scalars, math.sqrt is several times faster than numpy.sqrt.
-    return (1000/math.sqrt(2)) * getRandomDiff(array)
+    return thousandDivSqrtTwo * getRandomDiff(array)
 
 
 def getRandomDiff(array):
@@ -317,6 +318,7 @@ def computeWidths(array):
     The IQR is scaled by the IQR/RMS ratio for a Gaussian such that it
     if the array is Gaussian distributed, then the scaled IQR = RMS.
     """
+    # For scalars, math.sqrt is several times faster than numpy.sqrt.
     rmsSigma = math.sqrt(np.mean(array**2))
     iqrSigma = np.subtract.reduce(np.percentile(array, [75, 25])) / (scipy.stats.norm.ppf(0.75)*2)
     return rmsSigma, iqrSigma
