@@ -1,7 +1,10 @@
 __all__ = ["MatchedVisitMetricsRunner", "MatchedVisitMetricsConfig", "MatchedVisitMetricsTask"]
 
 import os
+import sys
+import traceback
 
+import lsst.pipe.base as pipeBase
 from lsst.pipe.base import CmdLineTask, ArgumentParser, TaskRunner
 from lsst.pex.config import Config, Field
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
@@ -30,8 +33,19 @@ class MatchedVisitMetricsRunner(TaskRunner):
                  ) for filterName in sorted(id_list_dict.keys())]
 
     def __call__(self, args):
+        exitStatus = 0
+
         task = self.TaskClass(config=self.config, log=self.log)
-        return task.run(*args)
+
+        try:
+            task.run(*args)
+        except Exception as e:
+            exitStatus = 1
+            task.log.fatal("Failed: %s" % e)
+            if not isinstance(e, pipeBase.TaskError):
+                traceback.print_exc(file=sys.stderr)
+
+        return pipeBase.Struct(exitStatus=exitStatus)
 
 
 class MatchedVisitMetricsConfig(Config):
@@ -163,9 +177,6 @@ class MatchedVisitMetricsTask(CmdLineTask):
         parser.add_id_argument("--id", "jointcal_wcs", help="data ID, with raw CCD keys + tract",
                                ContainerClass=PerTractCcdDataIdContainer)
         return parser
-
-    def _getConfigName(self):
-        return None
 
     def _getMetadataName(self):
         return None
