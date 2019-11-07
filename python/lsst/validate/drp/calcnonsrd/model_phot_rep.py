@@ -18,204 +18,67 @@
 # the GNU General Public License along with this program.  If not,
 # see <https://www.lsstcorp.org/LegalNotices/>.
 
-import numpy as np
-import astropy.units as u
-
-import lsst.pipe.base as pipeBase
-from lsst.verify import Measurement, Datum
-
-from lsst.validate.drp.calcsrd.pa1 import computeWidths, getRandomDiffRmsInMmags
+from lsst.validate.drp.repeatability import measurePhotRepeat
+from lsst.validate.drp.matchreduce import reduceSources
 
 
-def measureModelPhotRepeat(metric, matches, magKey, filterName, numRandomShuffles=50):
+def measure_model_phot_rep(metrics, filterName, matchedDataset, snr_bins=None):
     """Measurement of the model_phot_rep metric: photometric repeatability of
-    model measurements across a set of observations for stars and galaxies.
+    measurements of across a set of observations.
 
     Parameters
     ----------
-    metric : `lsst.verify.Metric`
-        A model_phot_rep `~lsst.verify.Metric` instance.
+    metrics : `lsst.verify.metricset.MetricSet`
+        A metric set containing all of the expected validate_drp.*PhotRep* metrics.
+    filterName : `str`
+        Name of filter used for all observations.
     matchedDataset : `lsst.verify.Blob`
-        This contains the spacially matched catalog to do the measurement.
-    filterName : str
-        filter name used in this measurement (e.g., `'r'`)
-    numRandomShuffles : int
-        Number of times to draw random pairs from the different observations.
+        Matched dataset blob, as returned by `lsst.validate.drp.matchreduce.build_matched_dataset`.
+    snr_bins : `iterable`
+        An iterable of pairs of SNR bins, each specified as a pair of floats
+        (lower, upper). Default [((5, 10), (10, 20)), ((20, 40), (40, 80))].
+        The total number of bins must not exceed the number of metrics,
+        which is currently four.
 
     Returns
     -------
-    measurement : `lsst.verify.Measurement`
-        Measurement of model_phot_rep and associated metadata.
-
-    See also
-    --------
-    calcGalPhotRepeat: Computes statistics of magnitudes differences of
-        galaxies across multiple visits. This is the main computation
-        function behind the model_phot_rep measurement.
-    """
-
-    results = calcModelPhotRepeat(matches, magKey, numRandomShuffles=numRandomShuffles)
-    datums = {}
-    datums['filter_name'] = Datum(filterName, label='filter',
-                                  description='Name of filter for this measurement')
-    datums['rms'] = Datum(results['rms'], label='RMS',
-                          description='Photometric repeatability RMS of galaxy pairs for '
-                          'each random sampling')
-    datums['iqr'] = Datum(results['iqr'], label='IQR',
-                          description='Photometric repeatability IQR of galaxy pairs for '
-                          'each random sample')
-    datums['magDiff'] = Datum(results['magDiff'], label='Delta mag',
-                              description='Photometric repeatability differences magnitudes for '
-                              'galaxy pairs for each random sample')
-    datums['magMean'] = Datum(results['magMean'], label='mag',
-                              description='Mean magnitude of pairs of extended sources matched '
-                              'across visits, for each random sample.')
-    return Measurement(metric, results['model_phot_rep'], extras=datums)
-
-
-def calcModelPhotRepeat(matches, magKey, numRandomShuffles=50):
-    """Calculate the photometric repeatability of measurements across a set
-    of randomly selected pairs of visits.
-
-    Parameters
-    ----------
-    matches : `lsst.afw.table.GroupView`
-        `~lsst.afw.table.GroupView` of sources matched between visits,
-        from MultiMatch, provided by
-        `lsst.validate.drp.matchreduce.build_matched_dataset`.
-    magKey : `lsst.afw.table` schema key
-        Magnitude column key in the ``groupView``.
-        E.g., ``magKey = allMatches.schema.find("slot_ModelFlux_mag").key``
-        where ``allMatches`` is the result of
-        `lsst.afw.table.MultiMatch.finish()`.
-    numRandomShuffles : int
-        Number of times to draw random pairs from the different observations.
-
-    Returns
-    -------
-    statistics : `dict`
-        Statistics to compute model_phot_rep. Fields are:
-
-        - ``model_phot_rep``: scalar `~astropy.unit.Quantity` of mean ``iqr``.
-          This is formally the model_phot_rep metric measurement.
-        - ``rms``: `~astropy.unit.Quantity` array in mmag of photometric
-          repeatability RMS across ``numRandomShuffles``.
-          Shape: ``(nRandomSamples,)``.
-        - ``iqr``: `~astropy.unit.Quantity` array in mmag of inter-quartile
-          range of photometric repeatability distribution.
-          Shape: ``(nRandomSamples,)``.
-        - ``magDiff``: `~astropy.unit.Quantity` array of magnitude differences
-          between pairs of galaxies. Shape: ``(nRandomSamples, nMatches)``.
-        - ``magMean``: `~astropy.unit.Quantity` array of mean magnitudes of
-          each pair of galaxies. Shape: ``(nRandomSamples, nMatches)``.
+    measurements : `list` [`lsst.verify.Measurement`]
+        A list of metric measurements with associated metadata.
 
     Notes
     -----
-    We calculate differences for ``numRandomShuffles`` different random
-    realizations of the measurement pairs, to provide some estimate of the
-    uncertainty on our RMS estimates due to the random shuffling.  This
-    estimate could be stated and calculated from a more formally derived
-    motivation but in practice 50 should be sufficient.
+    Each SNR bin can be specified independently; their edges don't need to align and could overlap.
+    Bins are paired because reduce_sources already has a mechanism to apply two different SNR cuts,
+    which could be generalized to an iterable if desired.
 
-    The LSST Science Requirements Document (LPM-17), or SRD, characterizes the
-    photometric repeatability by putting a requirement on the median RMS of
-    measurements of non-variable bright stars.  model_phot_rep is a similar
-    quantity measured for extended sources (almost exclusively galaxies),
-    for which no requirement currently exists in the SRD.
-
-    This present routine calculates this quantity in two different ways:
-
-    1. RMS
-    2. interquartile range (IQR)
-
-    **The model_phot_rep scalar measurement is the median of the IQR.**
-
-    This function also returns additional quantities of interest:
-
-    - the pair differences of observations of galaxies,
-    - the mean magnitude of each galaxy
-
-    Examples
-    --------
-    Normally ``calcGalPhotRepeat`` is called by `measureGalPhotRepeat`, using
-    data from `lsst.validate.drp.matchreduce.build_matched_dataset`. Here's an
-    example of how to call ``calcGalPhotRepeat`` directly given a Butler output
-    repository:
-
-    >>> import lsst.daf.persistence as dafPersist
-    >>> from lsst.afw.table import SourceCatalog, SchemaMapper, Field
-    >>> from lsst.afw.table import MultiMatch, SourceRecord, GroupView
-    >>> from lsst.validate.drp.calcnonsrd.model_phot_rep import calcModelPhotRepeat
-    >>> from lsst.validate.drp.util import discoverDataIds
-    >>> import numpy as np
-    >>> repo = 'HscQuick/output'
-    >>> butler = dafPersist.Butler(repo)
-    >>> dataset = 'src'
-    >>> schema = butler.get(dataset + '_schema', immediate=True).schema
-    >>> visitDataIds = discoverDataIds(repo)
-    >>> mmatch = None
-    >>> for vId in visitDataIds:
-    ...     cat = butler.get('src', vId)
-    ...     calib = butler.get('calexp_photoCalib', vId)
-    ...     cat = calib.calibrateCatalog(cat, ['modelfit_CModel'])
-    ...     if mmatch is None:
-    ...         mmatch = MultiMatch(cat.schema,
-    ...                             dataIdFormat={'visit': np.int32, 'ccd': np.int32},
-    ...                             RecordClass=SourceRecord)
-    ...     mmatch.add(catalog=cat, dataId=vId)
-    ...
-    >>> matchCat = mmatch.finish()
-    >>> allMatches = GroupView.build(matchCat)
-    >>> magKey = allMatches.schema.find('slot_ModelFlux_mag').key
-    >>> model_phot_rep = calcModelPhotRepeat(allMatches, magKey)
+    The default SNR bins were chosen in DM-21380
+    (https://jira.lsstcorp.org/browse/DM-21380) and are somewhat arbitrary.
+    It is probably not useful to measure SNR<5, whereas one might reasonably
+    prefer narrower bins or a higher maximum SNR than 80.
     """
-    mprSamples = [calcModelPhotRepeatSample(matches, magKey)
-                  for _ in range(numRandomShuffles)]
-
-    rms = np.array([mpr.rms for mpr in mprSamples]) * u.mmag
-    iqr = np.array([mpr.iqr for mpr in mprSamples]) * u.mmag
-    magDiff = np.array([mpr.magDiffs for mpr in mprSamples]) * u.mmag
-    magMean = np.array([mpr.magMean for mpr in mprSamples]) * u.mag
-    mpr = np.mean(iqr)
-    return {'rms': rms, 'iqr': iqr, 'magDiff': magDiff, 'magMean': magMean, 'model_phot_rep': mpr}
-
-
-def calcModelPhotRepeatSample(matches, magKey):
-    """Compute one realization of model_phot_rep by randomly sampling pairs of
-    visits.
-
-    Parameters
-    ----------
-    matches : `lsst.afw.table.GroupView`
-        `~lsst.afw.table.GroupView` of stars matched between visits,
-        from MultiMatch, provided by
-        `lsst.validate.drp.matchreduce.build_matched_dataset`.
-    magKey : `lsst.afw.table` schema key
-        Magnitude column key in the ``groupView``.
-        E.g., ``magKey = allMatches.schema.find("base_PsfFlux_mag").key``
-        where ``allMatches`` is the result of
-        `lsst.afw.table.MultiMatch.finish()`.
-
-    Returns
-    -------
-    metrics : `lsst.pipe.base.Struct`
-        Metrics of pairs of stars matched between two visits. Fields are:
-
-        - ``rms``: scalar RMS of differences of stars observed in this
-          randomly sampled pair of visits.
-        - ``iqr``: scalar inter-quartile range (IQR) of differences of stars
-          observed in a randomly sampled pair of visits.
-        - ``magDiffs`: array, shape ``(nMatches,)``, of magnitude differences
-          (mmag) for observed star across a randomly sampled pair of visits.
-        - ``magMean``: array, shape ``(nMatches,)``, of mean magnitudes
-          of stars observed across a randomly sampled pair of visits.
-
-    See also
-    --------
-    calcModelPhotRepeat : A wrapper that repeatedly calls this function to build
-        the model_phot_rep measurement.
-    """
-    magDiffs = matches.aggregate(getRandomDiffRmsInMmags, field=magKey)
-    magMean = matches.aggregate(np.mean, field=magKey)
-    rms, iqr = computeWidths(magDiffs)
-    return pipeBase.Struct(rms=rms, iqr=iqr, magDiffs=magDiffs, magMean=magMean,)
+    if snr_bins is None:
+        snr_bins = [((5, 10), (10, 20)), ((20, 40), (40, 80))]
+    name_flux_all = ["base_PsfFlux", 'slot_ModelFlux']
+    measurements = []
+    for name_flux in name_flux_all:
+        key_model_mag = matchedDataset._matchedCatalog.schema.find(f"{name_flux}_mag").key
+        if name_flux == 'slot_ModelFlux':
+            name_sources = ['Gal', 'Star']
+            prefix_metric = 'model'
+        else:
+            name_sources = ['Star']
+            prefix_metric = 'psf'
+        for idx_bins, ((snr_one_min, snr_one_max), (snr_two_min, snr_two_max)) in enumerate(snr_bins):
+            bin_base = 1 + 2*idx_bins
+            for source in name_sources:
+                reduceSources(matchedDataset, matchedDataset._matchedCatalog, extended=source == 'Gal',
+                              nameFluxKey=name_flux, goodSnr=snr_one_min, goodSnrMax=snr_one_max,
+                              safeSnr=snr_two_min, safeSnrMax=snr_two_max)
+                for bin_offset in [0, 1]:
+                    model_phot_rep = measurePhotRepeat(
+                        metrics[f'validate_drp.{prefix_metric}PhotRep{source}{bin_base + bin_offset}'],
+                        filterName,
+                        matchedDataset.goodMatches if bin_offset == 0 else matchedDataset.safeMatches,
+                        key_model_mag)
+                    measurements.append(model_phot_rep)
+    return measurements

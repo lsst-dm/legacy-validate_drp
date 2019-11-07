@@ -1,5 +1,5 @@
 # LSST Data Management System
-# Copyright 2008-2016 AURA/LSST.
+# Copyright 2008-2019 AURA/LSST.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -38,12 +38,12 @@ from lsst.verify import Job, MetricSet, SpecificationSet
 from lsst.daf.persistence import Butler
 
 from .util import repoNameToPrefix
-from .matchreduce import build_matched_dataset, _reduceSources
+from .matchreduce import build_matched_dataset
 from .photerrmodel import build_photometric_error_model
 from .astromerrmodel import build_astrometric_error_model
+from .calcnonsrd import measure_model_phot_rep
 from .calcsrd import (measurePA1, measurePA2, measurePF1, measureAMx,
                       measureAFx, measureADx, measureTEx)
-from .calcnonsrd import measureModelPhotRepeat
 from .plot import (plotAMx, plotPA1, plotTEx, plotPhotometryErrorModel,
                    plotAstrometryErrorModel)
 
@@ -334,34 +334,14 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
             afx = measureAFx(metrics[afx_spec.metric_name], amx, adx, adx_spec)
             add_measurement(afx)
 
-    pa1 = measurePA1(metrics['validate_drp.PA1'], matchedDataset, filterName)
+    pa1 = measurePA1(
+        metrics['validate_drp.PA1'], filterName, matchedDataset.safeMatches, matchedDataset.magKey)
     add_measurement(pa1)
 
-    snr_base = [5, 20]
-    name_flux_all = ["base_PsfFlux"]
     if not skipGalaxies:
-        name_flux_all.append('slot_ModelFlux')
-    for name_flux in name_flux_all:
-        key_model_mag = matchedDataset._matchedCatalog.schema.find(f"{name_flux}_mag").key
-        bin_base = 1
-        if name_flux == 'slot_ModelFlux':
-            name_sources = ['Gal', 'Star']
-            prefix_metric = 'model'
-        else:
-            name_sources = ['Star']
-            prefix_metric = 'psf'
-        for snr in snr_base:
-            for source in name_sources:
-                _reduceSources(matchedDataset, matchedDataset._matchedCatalog, extended=source == 'Gal',
-                               nameFluxKey=name_flux, goodSnr=snr, goodSnrMax=snr*2,
-                               safeSnr=snr*2, safeSnrMax=snr*4)
-                for bin_offset in range(2):
-                    model_phot_rep = measureModelPhotRepeat(
-                        metrics[f'validate_drp.{prefix_metric}PhotRep{source}{bin_base + bin_offset}'],
-                        matchedDataset.goodMatches if bin_offset == 0 else matchedDataset.safeMatches,
-                        key_model_mag, filterName)
-                    add_measurement(model_phot_rep)
-            bin_base += 2
+        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
+        for measurement in model_phot_reps:
+            add_measurement(measurement)
 
     pf1_spec_set = specs.subset(required_meta={'instrument': instrument, 'filter_name': filterName},
                                 spec_tags=['PF1', ])

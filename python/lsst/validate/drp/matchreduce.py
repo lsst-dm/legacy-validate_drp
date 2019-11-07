@@ -1,5 +1,5 @@
 # LSST Data Management System
-# Copyright 2016 AURA/LSST.
+# Copyright 2016-2019 AURA/LSST.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -21,7 +21,7 @@
 for measurement classes, plotting functions, and JSON persistence.
 """
 
-__all__ = ['build_matched_dataset']
+__all__ = ['build_matched_dataset', 'reduceSources']
 
 import numpy as np
 import astropy.units as u
@@ -129,7 +129,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
     # These are the serialiable attributes of this class.
-    _reduceSources(blob, blob._matchedCatalog, safeSnr)
+    reduceSources(blob, blob._matchedCatalog, safeSnr)
     return blob
 
 
@@ -314,13 +314,15 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     return srcVis, allMatches
 
 
-def _reduceSources(blob, allMatches, goodSnr=3.0, safeSnr=50.0, safeExtendedness=1.0, extended=False,
-                   nameFluxKey=None, goodSnrMax=np.Inf, safeSnrMax=np.Inf):
+def reduceSources(blob, allMatches, goodSnr=5.0, safeSnr=50.0, safeExtendedness=1.0, extended=False,
+                  nameFluxKey=None, goodSnrMax=np.Inf, safeSnrMax=np.Inf):
     """Calculate summary statistics for each star. These are persisted
     as object attributes.
 
     Parameters
     ----------
+    blob : `lsst.verify.blob.Blob`
+        A verification blob to store Datums in.
     allMatches : `lsst.afw.table.GroupView`
         GroupView object with matches.
     goodSnr : float, optional
