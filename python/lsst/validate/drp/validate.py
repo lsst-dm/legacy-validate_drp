@@ -252,7 +252,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
                  useJointCal=False, skipTEx=False, verbose=False,
                  metrics_package='verify_metrics',
                  instrument='Unknown', dataset_repo_url='./',
-                 skipGalaxies=False, **kwargs):
+                 skipNonSrd=False, **kwargs):
     r"""Main executable for the case where there is just one filter.
 
     Plot files and JSON files are generated in the local directory
@@ -290,8 +290,8 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         PsfShape measurements).
     verbose : bool, optional
         Output additional information on the analysis steps.
-    skipGalaxies : bool, optional
-        Whether to skip processing galaxies even if model measurements are available; default False.
+    skipNonSrd : bool, optional
+        Skip any metrics not defined in the LSST SRD; default False.
     """
     job = Job.load_metrics_package(meta={'instrument': instrument,
                                          'filter_name': filterName,
@@ -301,7 +301,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
 
     matchedDataset = build_matched_dataset(repo, visitDataIds,
                                            useJointCal=useJointCal,
-                                           skipTEx=skipTEx, skipGalaxies=skipGalaxies)
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)
@@ -338,7 +338,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         metrics['validate_drp.PA1'], filterName, matchedDataset.safeMatches, matchedDataset.magKey)
     add_measurement(pa1)
 
-    if not skipGalaxies:
+    if not skipNonSrd:
         model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
         for measurement in model_phot_reps:
             add_measurement(measurement)

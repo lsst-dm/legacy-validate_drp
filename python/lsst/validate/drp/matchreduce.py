@@ -41,7 +41,7 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
 
 
 def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
-                          useJointCal=False, skipTEx=False, skipGalaxies=False):
+                          useJointCal=False, skipTEx=False, skipNonSrd=False):
     """Construct a container for matched star catalogs from multiple visits, with filtering,
     summary statistics, and modelling.
 
@@ -64,8 +64,8 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
-    skipGalaxies : `bool`, optional
-        Skip anything related to galaxy model outputs ("slot_modelFlux").
+    skipNonSrd : `bool`, optional
+        Skip any metrics not defined in the LSST SRD; default False.
 
     Attributes of returned Blob
     ----------
@@ -124,7 +124,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     # Match catalogs across visits
     blob._catalog, blob._matchedCatalog = \
         _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                              useJointCal=useJointCal, skipTEx=skipTEx, skipGalaxies=skipGalaxies)
+                              useJointCal=useJointCal, skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
@@ -134,7 +134,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
 
 def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                          useJointCal=False, skipTEx=False, skipGalaxies=False):
+                          useJointCal=False, skipTEx=False, skipNonSrd=False):
     """Load data from specific visits and return a calibrated catalog matched
     with a reference.
 
@@ -154,8 +154,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
-    skipGalaxies : `bool`, optional
-        Skip anything related to galaxy model outputs ("slot_modelFlux").
+    skipNonSrd : `bool`, optional
+        Skip any metrics not defined in the LSST SRD; default False.
 
     Returns
     -------
@@ -194,7 +194,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
                                        'PSF magnitude'))
     mapper.addOutputField(Field[float]('base_PsfFlux_magErr',
                                        'PSF magnitude uncertainty'))
-    if not skipGalaxies:
+    if not skipNonSrd:
         # Needed because addOutputField(... 'slot_ModelFlux_mag') will add a field with that literal name
         aliasMap = schema.getAliasMap()
         # Possibly not needed since base_GaussianFlux is the default, but this ought to be safe
@@ -287,7 +287,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             for record in tmpCat:
                 record.updateCoord(wcs)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
-        if not skipGalaxies:
+        if not skipNonSrd:
             tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux'] /
                                                tmpCat['slot_ModelFlux_instFluxErr'])
             photoCalib.instFluxToMagnitude(tmpCat, "slot_ModelFlux", "slot_ModelFlux")
