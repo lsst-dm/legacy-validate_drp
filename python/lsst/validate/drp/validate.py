@@ -1,5 +1,5 @@
 # LSST Data Management System
-# Copyright 2008-2016 AURA/LSST.
+# Copyright 2008-2019 AURA/LSST.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -41,6 +41,7 @@ from .util import repoNameToPrefix
 from .matchreduce import build_matched_dataset
 from .photerrmodel import build_photometric_error_model
 from .astromerrmodel import build_astrometric_error_model
+from .calcnonsrd import measure_model_phot_rep
 from .calcsrd import (measurePA1, measurePA2, measurePF1, measureAMx,
                       measureAFx, measureADx, measureTEx)
 from .plot import (plotAMx, plotPA1, plotTEx, plotPhotometryErrorModel,
@@ -251,7 +252,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
                  useJointCal=False, skipTEx=False, verbose=False,
                  metrics_package='verify_metrics',
                  instrument='Unknown', dataset_repo_url='./',
-                 **kwargs):
+                 skipNonSrd=False, **kwargs):
     r"""Main executable for the case where there is just one filter.
 
     Plot files and JSON files are generated in the local directory
@@ -289,6 +290,8 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         PsfShape measurements).
     verbose : bool, optional
         Output additional information on the analysis steps.
+    skipNonSrd : bool, optional
+        Skip any metrics not defined in the LSST SRD; default False.
     """
     job = Job.load_metrics_package(meta={'instrument': instrument,
                                          'filter_name': filterName,
@@ -298,7 +301,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
 
     matchedDataset = build_matched_dataset(repo, visitDataIds,
                                            useJointCal=useJointCal,
-                                           skipTEx=skipTEx)
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)
@@ -331,8 +334,14 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
             afx = measureAFx(metrics[afx_spec.metric_name], amx, adx, adx_spec)
             add_measurement(afx)
 
-    pa1 = measurePA1(metrics['validate_drp.PA1'], matchedDataset, filterName)
+    pa1 = measurePA1(
+        metrics['validate_drp.PA1'], filterName, matchedDataset.safeMatches, matchedDataset.magKey)
     add_measurement(pa1)
+
+    if not skipNonSrd:
+        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
+        for measurement in model_phot_reps:
+            add_measurement(measurement)
 
     pf1_spec_set = specs.subset(required_meta={'instrument': instrument, 'filter_name': filterName},
                                 spec_tags=['PF1', ])
@@ -535,7 +544,9 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     continue
                 measurementCount += 1
                 metric = key.metric.split("_")[0]  # For compound metrics
-                spec_set = specs[metric]
+                spec_set = specs.get(metric, None)
+                if spec_set is None:
+                    continue
                 spec = None
                 for spec_key in spec_set:
                     if specName in spec_key.spec:
@@ -544,7 +555,7 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     for spec_key in spec_set:
                         if specName in spec_key.metric:  # For dependent metrics
                             spec = job.specs[spec_key]
-                if not spec.check(m.quantity):
+                if spec is not None and not spec.check(m.quantity):
                     failCount += 1
 
             if specName == default_level:

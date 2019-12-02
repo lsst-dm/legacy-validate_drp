@@ -73,6 +73,8 @@ if __name__ == "__main__":
                         help='Skip making plots of performance.')
     parser.add_argument('--level', type=str, default='design',
                         help='Level of SRD requirement to meet: "minimum", "design", "stretch"')
+    parser.add_argument('--skipNonSrd', dest='skipNonSrd', default=False, action='store_true',
+                        help='Whether to skip measuring metrics not defined in the SRD')
 
     args = parser.parse_args()
 
@@ -100,5 +102,6 @@ if __name__ == "__main__":
     kwargs['makePlot'] = args.makePlot
     kwargs['level'] = args.level
     kwargs['outputPrefix'] = args.outputPrefix
+    kwargs['skipNonSrd'] = args.skipNonSrd
 
     validate.run(args.repo, **kwargs)
