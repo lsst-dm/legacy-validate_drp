@@ -71,9 +71,24 @@ class MatchedVisitMetricsConfig(Config):
         dtype=float, default=1.0,
         doc="Match radius (arcseconds)."
     )
-    useJointCal = Field(
+    doApplyExternalPhotoCalib = Field(
         dtype=bool, default=False,
-        doc="Whether to use jointcal (or meas_mosaic) to calibrate measurements"
+        doc="Whether to apply external photometric calibration (PhotoCalib)"
+    )
+    externalPhotoCalibName = Field(
+        dtype=str,
+        doc=("Type of external PhotoCalib.  Currently supported are jointcal, "
+             "fgcm, and fgcm_tract."),
+        default="jointcal"
+    )
+    doApplyExternalWcs = Field(
+        dtype=bool, default=False,
+        doc="Whether to apply external astrometric calibration (wcs)"
+    )
+    externalWcsName = Field(
+        dtype=str,
+        doc="Type of external wcs.  Currently supported is jointcal.",
+        default="jointcal"
     )
     skipTEx = Field(
         dtype=bool, default=False,
@@ -98,12 +113,14 @@ class MatchedVisitMetricsTask(CmdLineTask):
 
     The input data IDs passed via the `--id` argument should contain the same
     keys as the `wcs` dataset (those used by the `calexp` dataset plus
-    `tract`).  When `config.useJointCal` is `True`, the `photoCalib` and `wcs`
-    datasets are used to calibrate sources; when it is `False`, `tract` is
-    ignored (but must still be present) and the photometric calibration is
-    retrieved from the `calexp` and the sky positions of sources are loaded
-    directly from the `src` dataset (which is used to obtain raw measurmenets
-    in both cases).
+    `tract`).  When `config.doApplyExternalPhotoCalib` is `True`, the
+    photometric calibration (`photoCalib`) is taken from
+    `config.externalPhotoCalibName`.  Otherwise, the photometric calibration
+    is retrieved from the `calexp`. When `config.doApplyExternalWcs` is
+    `True`, the astrometric calibration (`wcs`) is taken from
+    `config.externalWcsName`.  Otherwise, the astrometric calbration is
+    unchanged from the positions loaded from the `src` dataset.  In all cases
+    the `tract` must be present.
     """
 
     _DefaultName = "matchedVisitMetrics"
@@ -128,7 +145,10 @@ class MatchedVisitMetricsTask(CmdLineTask):
                            makeJson=self.config.makeJson,
                            filterName=filterName,
                            outputPrefix=output_prefix,
-                           useJointCal=self.config.useJointCal,
+                           doApplyExternalPhotoCalib=self.config.doApplyExternalPhotoCalib,
+                           externalPhotoCalibName=self.config.externalPhotoCalibName,
+                           doApplyExternalWcs=self.config.doApplyExternalWcs,
+                           externalWcsName=self.config.externalWcsName,
                            skipTEx=self.config.skipTEx,
                            verbose=self.config.verbose,
                            metrics_package=self.config.metricsRepository,

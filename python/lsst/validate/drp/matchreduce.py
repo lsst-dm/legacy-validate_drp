@@ -41,8 +41,11 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
 
 
 def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
-                          useJointCal=False, skipTEx=False, skipNonSrd=False):
-    """Construct a container for matched star catalogs from multiple visits, with filtering,
+                          doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                          doApplyExternalWcs=False, externalWcsName=None,
+                          uberCalAstrometryName=None, skipTEx=False,
+                          skipNonSrd=False):
+    """Construct a container for matched star catalogs from multple visits, with filtering,
     summary statistics, and modelling.
 
     `lsst.verify.Blob` instances are serializable to JSON.
@@ -59,8 +62,16 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         Radius for matching. Default is 1 arcsecond.
     safeSnr : `float`, optional
         Minimum median SNR for a match to be considered "safe".
-    useJointCal : `bool`, optional
-        Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
+    doApplyExternalPhotoCalib : bool, optional
+        Apply external photoCalib to calibrate fluxes.
+        Default is False.
+    externalPhotoCalibName : str, optional
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if doApplyExternalPhotoCalib is True.
+        Default is None.
+    doApplyExternalWcs : bool, optional
+        Apply external wcs to calibrate positions.
+        Default is False.
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
@@ -108,6 +119,11 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
         *Not serialized.*
     """
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalWcs and externalWcsName is None:
+        raise RuntimeError("Must set externalWcsName if doApplyExternalWcs is True.")
+
     blob = Blob('MatchedMultiVisitDataset')
 
     if not matchRadius:
@@ -118,13 +134,24 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
                                description='Filter name')
 
     # Record important configuration
-    blob['useJointCal'] = Datum(quantity=useJointCal,
-                                description='Whether jointcal/meas_mosaic calibrations were used')
+    blob['doApplyExternalPhotoCalib'] = Datum(quantity=doApplyExternalPhotoCalib,
+                                              description=('Whether external photometric '
+                                                           'calibrations were used'))
+    blob['externalPhotoCalibName'] = Datum(quantity=externalPhotoCalibName,
+                                           description='Name of external PhotoCalib used')
+    blob['doApplyExternalWcs'] = Datum(quantity=doApplyExternalWcs,
+                                       description='Whether external wcs calibrations were used')
+    blob['externalWcsName'] = Datum(quantity=externalWcsName,
+                                    description='Name of external wcs used')
 
     # Match catalogs across visits
     blob._catalog, blob._matchedCatalog = \
         _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                              useJointCal=useJointCal, skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+                              doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,
+                              externalPhotoCalibName=externalPhotoCalibName,
+                              doApplyExternalWcs=doApplyExternalWcs,
+                              externalWcsName=externalWcsName,
+                              skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
@@ -134,8 +161,10 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
 
 def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                          useJointCal=False, skipTEx=False, skipNonSrd=False):
-    """Load data from specific visits and return a calibrated catalog matched
+                          doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                          doApplyExternalWcs=False, externalWcsName=None,
+                          skipTEx=False, skipNonSrd=False):
+    """Load data from specific visits and returned a calibrated catalog matched
     with a reference.
 
     Parameters
@@ -148,9 +177,19 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         calibration.
     matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
-    useJointCal : `bool`, optional
-        Use jointcal outputs to calibrate positions and fluxes instead of
-        meas_mosaic.
+    doApplyExternalPhotoCalib : bool, optional
+        Apply external photoCalib to calibrate fluxes.
+        Default is False.
+    externalPhotoCalibName : str, optional
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if doApplyExternalPhotoCalib is True.
+        Default is None.
+    doApplyExternalWcs : bool, optional
+        Apply external wcs to calibrate positions.
+        Default is False.
+    externalWcsName : str, optional
+        Type of external `wcs` to apply.  Currently supported is jointcal.
+        Must be set if doApplyExternalWcs is True.  Default is None.
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
@@ -164,6 +203,12 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     matches : `lsst.afw.table.GroupView`
         A GroupView of the matched sources.
     """
+
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalWcs and externalWcsName is None:
+        raise RuntimeError("Must set externalWcsName if doApplyExternalWcs is True.")
+
     # Following
     # https://github.com/lsst/afw/blob/tickets/DM-3896/examples/repeatability.ipynb
     if isinstance(repo, dafPersist.Butler):
@@ -227,29 +272,21 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
 
     for vId in dataIds:
 
-        if useJointCal:
+        if doApplyExternalPhotoCalib:
             try:
-                photoCalib = butler.get("jointcal_photoCalib", vId)
+                photoCalib = butler.get('%s_photoCalib' % (externalPhotoCalibName), vId)
             except (FitsError, dafPersist.NoResults) as e:
                 print(e)
-                print("Could not open photometric calibration for ", vId)
-                print("Skipping this dataId.")
-                continue
-            try:
-                wcs = butler.get("jointcal_wcs", vId)
-            except (FitsError, dafPersist.NoResults) as e:
-                print(e)
-                print("Could not open updated WCS for ", vId)
+                print("Could not open external photometric calibration for ", vId)
                 print("Skipping this dataId.")
                 continue
         else:
             try:
-                photoCalib = butler.get("calexp_photoCalib", vId)
+                photoCalib = butler.get('calexp_photoCalib', vId)
             except (FitsError, dafPersist.NoResults) as e:
                 print(e)
                 print("Could not open calibrated image file for ", vId)
                 print("Skipping this dataId.")
-                continue
             except TypeError as te:
                 # DECam images that haven't been properly reformatted
                 # can trigger a TypeError because of a residual FITS header
@@ -264,9 +301,18 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
                 print("Skipping this dataId.")
                 continue
 
-        # We don't want to put this above the first "if useJointCal block"
-        # because we need to use the first `butler.get` above to quickly
-        # catch data IDs with no usable outputs.
+        if doApplyExternalWcs:
+            try:
+                wcs = butler.get("%s_wcs" % (externalWcsName), vId)
+            except (FitsError, dafPersist.NoResults) as e:
+                print(e)
+                print("Could not open external WCS for ", vId)
+                print("Skipping this dataId.")
+                continue
+
+        # We don't want to put this above the first "if doApplyExternalPhotoCalib
+        # block" because we need to use the first `butler.get` above to quickly
+        # catch dataIDs with no usable outputs.
         try:
             # HSC supports these flags, which dramatically improve I/O
             # performance; support for other cameras is DM-6927.
@@ -283,7 +329,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         tmpCat['base_PsfFlux_snr'][:] = tmpCat['base_PsfFlux_instFlux'] \
             / tmpCat['base_PsfFlux_instFluxErr']
 
-        if useJointCal:
+        if doApplyExternalWcs:
             for record in tmpCat:
                 record.updateCoord(wcs)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
