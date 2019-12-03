@@ -3,10 +3,9 @@ __all__ = ["MatchedVisitMetricsRunner", "MatchedVisitMetricsConfig", "MatchedVis
 import os
 import sys
 import traceback
-
 import lsst.pipe.base as pipeBase
 from lsst.pipe.base import CmdLineTask, ArgumentParser, TaskRunner
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, ChoiceField
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from .validate import runOneFilter, plot_metrics
 
@@ -87,22 +86,34 @@ class MatchedVisitMetricsConfig(Config):
     )
     doApplyExternalPhotoCalib = Field(
         dtype=bool, default=False,
-        doc="Whether to apply external photometric calibration (PhotoCalib)"
+        doc=("Whether to apply external photometric calibration via an "
+             "`lsst.afw.image.PhotoCalib` object.  Uses the "
+             "`externalPhotoCalibName` field to determine which calibration "
+             "to load.")
     )
-    externalPhotoCalibName = Field(
+    externalPhotoCalibName = ChoiceField(
         dtype=str,
-        doc=("Type of external PhotoCalib.  Currently supported are jointcal, "
-             "fgcm, and fgcm_tract."),
-        default="jointcal"
+        doc="Type of external PhotoCalib if `doApplyExternalPhotoCalib` is True.",
+        default="jointcal",
+        allowed={
+            "jointcal": "Use jointcal_photoCalib",
+            "fgcm": "Use fgcm_photoCalib",
+            "fgcm_tract": "Use fgcm_tract_photoCalib"
+        }
     )
-    doApplyExternalWcs = Field(
+    doApplyExternalSkyWcs = Field(
         dtype=bool, default=False,
-        doc="Whether to apply external astrometric calibration (wcs)"
+        doc=("Whether to apply external astrometric calibration via an "
+             "`lsst.afw.geom.SkyWcs` object.  Uses the `externalSkyWcsName` "
+             "field to determine which calibration to load.")
     )
-    externalWcsName = Field(
+    externalSkyWcsName = ChoiceField(
         dtype=str,
-        doc="Type of external wcs.  Currently supported is jointcal.",
-        default="jointcal"
+        doc="Type of external SkyWcs if `doApplyExternalSkyWcs` is True.",
+        default="jointcal",
+        allowed={
+            "jointcal": "Use jointcal_wcs"
+        }
     )
     skipTEx = Field(
         dtype=bool, default=False,
@@ -129,12 +140,12 @@ class MatchedVisitMetricsTask(CmdLineTask):
     keys as the `wcs` dataset (those used by the `calexp` dataset plus
     `tract`).  When `config.doApplyExternalPhotoCalib` is `True`, the
     photometric calibration (`photoCalib`) is taken from
-    `config.externalPhotoCalibName`.  Otherwise, the photometric calibration
-    is retrieved from the `calexp`. When `config.doApplyExternalWcs` is
-    `True`, the astrometric calibration (`wcs`) is taken from
-    `config.externalWcsName`.  Otherwise, the astrometric calbration is
-    unchanged from the positions loaded from the `src` dataset.  In all cases
-    the `tract` must be present.
+    `config.externalPhotoCalibName` via the `name_photoCalib` dataset.  Otherwise,
+    the photometric calibration is retrieved from the `calexp`. When
+    `config.doApplyExternalSkyWcs` is `True`, the astrometric calibration is taken
+    from `config.externalSkyWcsName` with the `name_wcs` dataset.  Otherwise, the
+    astrometric calbration is unchanged from the positions loaded from the
+    `src` dataset.  In all cases the `tract` must be present.
     """
 
     _DefaultName = "matchedVisitMetrics"
@@ -161,8 +172,8 @@ class MatchedVisitMetricsTask(CmdLineTask):
                            outputPrefix=output_prefix,
                            doApplyExternalPhotoCalib=self.config.doApplyExternalPhotoCalib,
                            externalPhotoCalibName=self.config.externalPhotoCalibName,
-                           doApplyExternalWcs=self.config.doApplyExternalWcs,
-                           externalWcsName=self.config.externalWcsName,
+                           doApplyExternalSkyWcs=self.config.doApplyExternalSkyWcs,
+                           externalSkyWcsName=self.config.externalSkyWcsName,
                            skipTEx=self.config.skipTEx,
                            verbose=self.config.verbose,
                            metrics_package=self.config.metricsRepository,

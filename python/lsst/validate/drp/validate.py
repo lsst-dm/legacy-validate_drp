@@ -181,8 +181,8 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
     dataIds : `list` of `dict`
         List of butler data IDs of Image catalogs to compare to reference.
         The calexp cpixel image is needed for the photometric calibration.
-        Tract IDs must be included if doApplyExternalPhotoCalib or
-        doApplyExternalWcs is True.
+        Tract IDs must be included if "doApplyExternalPhotoCalib" or
+        "doApplyExternalSkyWcs" is True.
     metrics : `dict` or `collections.OrderedDict`
         Dictionary of `lsst.validate.base.Metric` instances. Typically this is
         data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
@@ -251,7 +251,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
 def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
-                 doApplyExternalWcs=False, externalWcsName=None,
+                 doApplyExternalSkyWcs=False, externalSkyWcsName=None,
                  skipTEx=False, verbose=False,
                  metrics_package='verify_metrics',
                  instrument='Unknown', dataset_repo_url='./',
@@ -288,30 +288,34 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         Name of the filter (bandpass).
     doApplyExternalPhotoCalib : bool, optional
         Apply external photoCalib to calibrate fluxes.
-        Default is False.
     externalPhotoCalibName : str, optional
         Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
         fgcm, and fgcm_tract.  Must be set if doApplyExternalPhotoCalib is True.
-        Default is None.
-    doApplyExternalWcs : bool, optional
+    doApplyExternalSkyWcs : bool, optional
         Apply external wcs to calibrate positions.
-        Default is False.
-    externalWcsName : str, optional
+    externalSkyWcsName : str, optional
         Type of external `wcs` to apply.  Currently supported is jointcal.
-        Must be set if doApplyExternalWcs is True.  Default is None.
+        Must be set if "doApplyExternalSkyWcs" is True.
     skipTEx : bool, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
     verbose : bool, optional
         Output additional information on the analysis steps.
     skipNonSrd : bool, optional
-        Skip any metrics not defined in the LSST SRD; default False.
+        Skip any metrics not defined in the LSST SRD.
+
+    Raises
+    ------
+    RuntimeError:
+        Raised if "doApplyExternalPhotoCalib" is True and "externalPhotoCalibName"
+        is None, or if "doApplyExternalSkyWcs" is True and "externalSkyWcsName" is
+        None.
     """
 
     if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
         raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
-    if doApplyExternalWcs and externalWcsName is None:
-        raise RuntimeError("Must set externalWcsName if doApplyExternalWcs is True.")
+    if doApplyExternalSkyWcs and externalSkyWcsName is None:
+        raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
 
     job = Job.load_metrics_package(meta={'instrument': instrument,
                                          'filter_name': filterName,
@@ -322,8 +326,8 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
     matchedDataset = build_matched_dataset(repo, visitDataIds,
                                            doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,
                                            externalPhotoCalibName=externalPhotoCalibName,
-                                           doApplyExternalWcs=doApplyExternalWcs,
-                                           externalWcsName=externalWcsName,
+                                           doApplyExternalSkyWcs=doApplyExternalSkyWcs,
+                                           externalSkyWcsName=externalSkyWcsName,
                                            skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     photomModel = build_photometric_error_model(matchedDataset)
