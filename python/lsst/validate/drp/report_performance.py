@@ -128,13 +128,14 @@ def objects_to_table(input_objects, level='design'):
                 for spec_key in spec_set:
                     if level in spec_key.spec:
                         spec = job.specs[spec_key]
-            if np.isnan(m.quantity):
-                meas_quantity_value = "**"  # -- is reserved in rst for headers
-            else:
-                meas_quantity_value = m.quantity.value
-            this_row = [metric, filter_name, meas_quantity_value, m.quantity.unit,
-                        spec.operator_str, spec.threshold.value, job.meta['instrument']]
-            rows.append(this_row)
+            if spec is not None:
+                if np.isnan(m.quantity):
+                    meas_quantity_value = "**"  # -- is reserved in rst for headers
+                else:
+                    meas_quantity_value = m.quantity.value
+                this_row = [metric, filter_name, meas_quantity_value, m.quantity.unit,
+                            spec.operator_str, spec.threshold.value, job.meta['instrument']]
+                rows.append(this_row)
 
     if len(rows) == 0:
         msg_format = "No rows loaded from Job at level: '{:s}'"
