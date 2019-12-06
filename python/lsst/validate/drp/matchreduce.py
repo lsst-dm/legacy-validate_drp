@@ -33,6 +33,7 @@ import lsst.daf.persistence as dafPersist
 from lsst.afw.table import (SourceCatalog, SchemaMapper, Field,
                             MultiMatch, SimpleRecord, GroupView,
                             SOURCE_IO_NO_FOOTPRINTS)
+import lsst.afw.table as afwTable
 from lsst.afw.fits import FitsError
 from lsst.verify import Blob, Datum
 
@@ -41,8 +42,10 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
 
 
 def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
-                          useJointCal=False, skipTEx=False, skipNonSrd=False):
-    """Construct a container for matched star catalogs from multiple visits, with filtering,
+                          doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                          doApplyExternalSkyWcs=False, externalSkyWcsName=None,
+                          skipTEx=False, skipNonSrd=False):
+    """Construct a container for matched star catalogs from multple visits, with filtering,
     summary statistics, and modelling.
 
     `lsst.verify.Blob` instances are serializable to JSON.
@@ -59,8 +62,16 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         Radius for matching. Default is 1 arcsecond.
     safeSnr : `float`, optional
         Minimum median SNR for a match to be considered "safe".
-    useJointCal : `bool`, optional
-        Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
+    doApplyExternalPhotoCalib : bool, optional
+        Apply external photoCalib to calibrate fluxes.
+    externalPhotoCalibName : str, optional
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if "doApplyExternalPhotoCalib" is True.
+    doApplyExternalSkyWcs : bool, optional
+        Apply external wcs to calibrate positions.
+    externalSkyWcsName : str, optional:
+        Type of external `wcs` to apply.  Currently supported is jointcal.
+        Must be set if "doApplyExternalSkyWcs" is True.
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
@@ -107,7 +118,19 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         catalog tables.
 
         *Not serialized.*
+
+    Raises
+    ------
+    RuntimeError:
+        Raised if "doApplyExternalPhotoCalib" is True and "externalPhotoCalibName"
+        is None, or if "doApplyExternalSkyWcs" is True and "externalSkyWcsName" is
+        None.
     """
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalSkyWcs and externalSkyWcsName is None:
+        raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
+
     blob = Blob('MatchedMultiVisitDataset')
 
     if not matchRadius:
@@ -118,13 +141,24 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
                                description='Filter name')
 
     # Record important configuration
-    blob['useJointCal'] = Datum(quantity=useJointCal,
-                                description='Whether jointcal/meas_mosaic calibrations were used')
+    blob['doApplyExternalPhotoCalib'] = Datum(quantity=doApplyExternalPhotoCalib,
+                                              description=('Whether external photometric '
+                                                           'calibrations were used.'))
+    blob['externalPhotoCalibName'] = Datum(quantity=externalPhotoCalibName,
+                                           description='Name of external PhotoCalib dataset used.')
+    blob['doApplyExternalSkyWcs'] = Datum(quantity=doApplyExternalSkyWcs,
+                                          description='Whether external wcs calibrations were used.')
+    blob['externalSkyWcsName'] = Datum(quantity=externalSkyWcsName,
+                                       description='Name of external wcs dataset used.')
 
     # Match catalogs across visits
     blob._catalog, blob._matchedCatalog = \
         _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                              useJointCal=useJointCal, skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+                              doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,
+                              externalPhotoCalibName=externalPhotoCalibName,
+                              doApplyExternalSkyWcs=doApplyExternalSkyWcs,
+                              externalSkyWcsName=externalSkyWcsName,
+                              skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
@@ -134,8 +168,10 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
 
 
 def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
-                          useJointCal=False, skipTEx=False, skipNonSrd=False):
-    """Load data from specific visits and return a calibrated catalog matched
+                          doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                          doApplyExternalSkyWcs=False, externalSkyWcsName=None,
+                          skipTEx=False, skipNonSrd=False):
+    """Load data from specific visits and returned a calibrated catalog matched
     with a reference.
 
     Parameters
@@ -148,9 +184,16 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         calibration.
     matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
-    useJointCal : `bool`, optional
-        Use jointcal outputs to calibrate positions and fluxes instead of
-        meas_mosaic.
+    doApplyExternalPhotoCalib : bool, optional
+        Apply external photoCalib to calibrate fluxes.
+    externalPhotoCalibName : str, optional
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if doApplyExternalPhotoCalib is True.
+    doApplyExternalSkyWcs : bool, optional
+        Apply external wcs to calibrate positions.
+    externalSkyWcsName : str, optional
+        Type of external `wcs` to apply.  Currently supported is jointcal.
+        Must be set if "doApplyExternalWcs" is True.
     skipTEx : `bool`, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
@@ -163,7 +206,20 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         A new calibrated SourceCatalog.
     matches : `lsst.afw.table.GroupView`
         A GroupView of the matched sources.
+
+    Raises
+    ------
+    RuntimeError:
+        Raised if "doApplyExternalPhotoCalib" is True and "externalPhotoCalibName"
+        is None, or if "doApplyExternalSkyWcs" is True and "externalSkyWcsName" is
+        None.
     """
+
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalSkyWcs and externalSkyWcsName is None:
+        raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
+
     # Following
     # https://github.com/lsst/afw/blob/tickets/DM-3896/examples/repeatability.ipynb
     if isinstance(repo, dafPersist.Butler):
@@ -227,46 +283,19 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
 
     for vId in dataIds:
 
-        if useJointCal:
-            try:
-                photoCalib = butler.get("jointcal_photoCalib", vId)
-            except (FitsError, dafPersist.NoResults) as e:
-                print(e)
-                print("Could not open photometric calibration for ", vId)
-                print("Skipping this dataId.")
-                continue
-            try:
-                wcs = butler.get("jointcal_wcs", vId)
-            except (FitsError, dafPersist.NoResults) as e:
-                print(e)
-                print("Could not open updated WCS for ", vId)
-                print("Skipping this dataId.")
-                continue
-        else:
-            try:
-                photoCalib = butler.get("calexp_photoCalib", vId)
-            except (FitsError, dafPersist.NoResults) as e:
-                print(e)
-                print("Could not open calibrated image file for ", vId)
-                print("Skipping this dataId.")
-                continue
-            except TypeError as te:
-                # DECam images that haven't been properly reformatted
-                # can trigger a TypeError because of a residual FITS header
-                # LTV2 which is a float instead of the expected integer.
-                # This generates an error of the form:
-                #
-                # lsst::pex::exceptions::TypeError: 'LTV2 has mismatched type'
-                #
-                # See, e.g., DM-2957 for details.
-                print(te)
-                print("Calibration image header information malformed.")
-                print("Skipping this dataId.")
+        photoCalib = _loadPhotoCalib(butler, vId,
+                                     doApplyExternalPhotoCalib, externalPhotoCalibName)
+        if photoCalib is None:
+            continue
+
+        if doApplyExternalSkyWcs:
+            wcs = _loadExternalSkyWcs(butler, vId, externalSkyWcsName)
+            if wcs is None:
                 continue
 
-        # We don't want to put this above the first "if useJointCal block"
-        # because we need to use the first `butler.get` above to quickly
-        # catch data IDs with no usable outputs.
+        # We don't want to put this above the first _loadPhotoCalib call
+        # because we need to use the first `butler.get` in there to quickly
+        # catch dataIDs with no usable outputs.
         try:
             # HSC supports these flags, which dramatically improve I/O
             # performance; support for other cameras is DM-6927.
@@ -283,9 +312,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         tmpCat['base_PsfFlux_snr'][:] = tmpCat['base_PsfFlux_instFlux'] \
             / tmpCat['base_PsfFlux_instFluxErr']
 
-        if useJointCal:
-            for record in tmpCat:
-                record.updateCoord(wcs)
+        if doApplyExternalSkyWcs:
+            afwTable.wcsUtils.updateSourceCoords(wcs, tmpCat)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
         if not skipNonSrd:
             tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux'] /
@@ -409,3 +437,86 @@ def reduceSources(blob, allMatches, goodSnr=5.0, safeSnr=50.0, safeExtendedness=
     # These attributes are not serialized
     blob.goodMatches = goodMatches
     blob.safeMatches = safeMatches
+
+
+def _loadPhotoCalib(butler, dataId, doApplyExternalPhotoCalib, externalPhotoCalibName):
+    """
+    Load a photoCalib object.
+
+    Parameters
+    ----------
+    butler: `lsst.daf.persistence.Butler`
+    dataId: Butler dataId `dict`
+    doApplyExternalPhotoCalib: `bool`
+        Apply external photoCalib to calibrate fluxes.
+    externalPhotoCalibName: `str`
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if "doApplyExternalPhotoCalib" is True.
+
+    Returns
+    -------
+    photoCalib: `lsst.afw.image.PhotoCalib` or None
+        photoCalib to apply.  None if a suitable one was not found.
+    """
+
+    photoCalib = None
+
+    if doApplyExternalPhotoCalib:
+        try:
+            photoCalib = butler.get(f"{externalPhotoCalibName}_photoCalib", dataId)
+        except (FitsError, dafPersist.NoResults) as e:
+            print(e)
+            print("Could not open external photometric calibration for ", dataId)
+            print("Skipping this dataId.")
+            photoCalib = None
+    else:
+        try:
+            photoCalib = butler.get('calexp_photoCalib', dataId)
+        except (FitsError, dafPersist.NoResults) as e:
+            print(e)
+            print("Could not open calibrated image file for ", dataId)
+            print("Skipping this dataId.")
+        except TypeError as te:
+            # DECam images that haven't been properly reformatted
+            # can trigger a TypeError because of a residual FITS header
+            # LTV2 which is a float instead of the expected integer.
+            # This generates an error of the form:
+            #
+            # lsst::pex::exceptions::TypeError: 'LTV2 has mismatched type'
+            #
+            # See, e.g., DM-2957 for details.
+            print(te)
+            print("Calibration image header information malformed.")
+            print("Skipping this dataId.")
+            photoCalib = None
+
+    return photoCalib
+
+
+def _loadExternalSkyWcs(butler, dataId, externalSkyWcsName):
+    """
+    Load a SkyWcs object.
+
+    Parameters
+    ----------
+    butler: `lsst.daf.persistence.Butler`
+    dataId: Butler dataId `dict`
+    externalSkyWcsName: `str`
+        Type of external `SkyWcs` to apply.  Currently supported is jointcal.
+        Must be not None if "doApplyExternalSkyWcs" is True.
+
+    Returns
+    -------
+    SkyWcs: `lsst.afw.geom.SkyWcs` or None
+        SkyWcs to apply.  None if a suitable one was not found.
+    """
+
+    try:
+        wcs = butler.get(f"{externalSkyWcsName}_wcs", dataId)
+    except (FitsError, dafPersist.NoResults) as e:
+        print(e)
+        print("Could not open external WCS for ", dataId)
+        print("Skipping this dataId.")
+        wcs = None
+
+    return wcs

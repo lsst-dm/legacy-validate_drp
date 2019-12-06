@@ -181,7 +181,8 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
     dataIds : `list` of `dict`
         List of butler data IDs of Image catalogs to compare to reference.
         The calexp cpixel image is needed for the photometric calibration.
-        Tract IDs must be included if useJointCal is True.
+        Tract IDs must be included if "doApplyExternalPhotoCalib" or
+        "doApplyExternalSkyWcs" is True.
     metrics : `dict` or `collections.OrderedDict`
         Dictionary of `lsst.validate.base.Metric` instances. Typically this is
         data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
@@ -249,7 +250,9 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
 
 def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
                  makeJson=True, filterName=None, outputPrefix='',
-                 useJointCal=False, skipTEx=False, verbose=False,
+                 doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                 doApplyExternalSkyWcs=False, externalSkyWcsName=None,
+                 skipTEx=False, verbose=False,
                  metrics_package='verify_metrics',
                  instrument='Unknown', dataset_repo_url='./',
                  skipNonSrd=False, **kwargs):
@@ -268,9 +271,9 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
     dataIds : list of dict
         List of `butler` data IDs of Image catalogs to compare to reference.
         The `calexp` pixel image is needed for the photometric calibration
-        unless useJointCal is True, in which the `photoCalib` and `wcs`
-        datasets are used instead.  Note that these have data IDs that include
-        the tract number.
+        unless doApplyExternalPhotoCalib is True such
+        that the appropriate `photoCalib` dataset is used. Note that these
+        have data IDs that include the tract number.
     metrics : `dict` or `collections.OrderedDict`
         Dictionary of `lsst.validate.base.Metric` instances. Typically this is
         data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
@@ -283,16 +286,37 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         Specify the beginning filename for output files.
     filterName : str, optional
         Name of the filter (bandpass).
-    useJointCal : bool, optional
-        Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
+    doApplyExternalPhotoCalib : bool, optional
+        Apply external photoCalib to calibrate fluxes.
+    externalPhotoCalibName : str, optional
+        Type of external `PhotoCalib` to apply.  Currently supported are jointcal,
+        fgcm, and fgcm_tract.  Must be set if doApplyExternalPhotoCalib is True.
+    doApplyExternalSkyWcs : bool, optional
+        Apply external wcs to calibrate positions.
+    externalSkyWcsName : str, optional
+        Type of external `wcs` to apply.  Currently supported is jointcal.
+        Must be set if "doApplyExternalSkyWcs" is True.
     skipTEx : bool, optional
         Skip TEx calculations (useful for older catalogs that don't have
         PsfShape measurements).
     verbose : bool, optional
         Output additional information on the analysis steps.
     skipNonSrd : bool, optional
-        Skip any metrics not defined in the LSST SRD; default False.
+        Skip any metrics not defined in the LSST SRD.
+
+    Raises
+    ------
+    RuntimeError:
+        Raised if "doApplyExternalPhotoCalib" is True and "externalPhotoCalibName"
+        is None, or if "doApplyExternalSkyWcs" is True and "externalSkyWcsName" is
+        None.
     """
+
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalSkyWcs and externalSkyWcsName is None:
+        raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
+
     job = Job.load_metrics_package(meta={'instrument': instrument,
                                          'filter_name': filterName,
                                          'dataset_repo_url': dataset_repo_url},
@@ -300,7 +324,10 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
                                    package_name_or_path=metrics_package)
 
     matchedDataset = build_matched_dataset(repo, visitDataIds,
-                                           useJointCal=useJointCal,
+                                           doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,
+                                           externalPhotoCalibName=externalPhotoCalibName,
+                                           doApplyExternalSkyWcs=doApplyExternalSkyWcs,
+                                           externalSkyWcsName=externalSkyWcsName,
                                            skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     photomModel = build_photometric_error_model(matchedDataset)

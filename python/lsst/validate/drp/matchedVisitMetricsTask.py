@@ -1,9 +1,11 @@
 __all__ = ["MatchedVisitMetricsRunner", "MatchedVisitMetricsConfig", "MatchedVisitMetricsTask"]
 
 import os
-
+import sys
+import traceback
+import lsst.pipe.base as pipeBase
 from lsst.pipe.base import CmdLineTask, ArgumentParser, TaskRunner
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, ChoiceField
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from .validate import runOneFilter, plot_metrics
 
@@ -30,8 +32,19 @@ class MatchedVisitMetricsRunner(TaskRunner):
                  ) for filterName in sorted(id_list_dict.keys())]
 
     def __call__(self, args):
+        exitStatus = 0
+
         task = self.TaskClass(config=self.config, log=self.log)
-        return task.run(*args)
+
+        try:
+            task.run(*args)
+        except Exception as e:
+            exitStatus = 1
+            task.log.fatal("Failed: %s" % e)
+            if not isinstance(e, pipeBase.TaskError):
+                traceback.print_exc(file=sys.stderr)
+
+        return pipeBase.Struct(exitStatus=exitStatus)
 
 
 class MatchedVisitMetricsConfig(Config):
@@ -71,9 +84,36 @@ class MatchedVisitMetricsConfig(Config):
         dtype=float, default=1.0,
         doc="Match radius (arcseconds)."
     )
-    useJointCal = Field(
+    doApplyExternalPhotoCalib = Field(
         dtype=bool, default=False,
-        doc="Whether to use jointcal (or meas_mosaic) to calibrate measurements"
+        doc=("Whether to apply external photometric calibration via an "
+             "`lsst.afw.image.PhotoCalib` object.  Uses the "
+             "`externalPhotoCalibName` field to determine which calibration "
+             "to load.")
+    )
+    externalPhotoCalibName = ChoiceField(
+        dtype=str,
+        doc="Type of external PhotoCalib if `doApplyExternalPhotoCalib` is True.",
+        default="jointcal",
+        allowed={
+            "jointcal": "Use jointcal_photoCalib",
+            "fgcm": "Use fgcm_photoCalib",
+            "fgcm_tract": "Use fgcm_tract_photoCalib"
+        }
+    )
+    doApplyExternalSkyWcs = Field(
+        dtype=bool, default=False,
+        doc=("Whether to apply external astrometric calibration via an "
+             "`lsst.afw.geom.SkyWcs` object.  Uses the `externalSkyWcsName` "
+             "field to determine which calibration to load.")
+    )
+    externalSkyWcsName = ChoiceField(
+        dtype=str,
+        doc="Type of external SkyWcs if `doApplyExternalSkyWcs` is True.",
+        default="jointcal",
+        allowed={
+            "jointcal": "Use jointcal_wcs"
+        }
     )
     skipTEx = Field(
         dtype=bool, default=False,
@@ -98,12 +138,14 @@ class MatchedVisitMetricsTask(CmdLineTask):
 
     The input data IDs passed via the `--id` argument should contain the same
     keys as the `wcs` dataset (those used by the `calexp` dataset plus
-    `tract`).  When `config.useJointCal` is `True`, the `photoCalib` and `wcs`
-    datasets are used to calibrate sources; when it is `False`, `tract` is
-    ignored (but must still be present) and the photometric calibration is
-    retrieved from the `calexp` and the sky positions of sources are loaded
-    directly from the `src` dataset (which is used to obtain raw measurmenets
-    in both cases).
+    `tract`).  When `config.doApplyExternalPhotoCalib` is `True`, the
+    photometric calibration (`photoCalib`) is taken from
+    `config.externalPhotoCalibName` via the `name_photoCalib` dataset.  Otherwise,
+    the photometric calibration is retrieved from the `calexp`. When
+    `config.doApplyExternalSkyWcs` is `True`, the astrometric calibration is taken
+    from `config.externalSkyWcsName` with the `name_wcs` dataset.  Otherwise, the
+    astrometric calbration is unchanged from the positions loaded from the
+    `src` dataset.  In all cases the `tract` must be present.
     """
 
     _DefaultName = "matchedVisitMetrics"
@@ -128,7 +170,10 @@ class MatchedVisitMetricsTask(CmdLineTask):
                            makeJson=self.config.makeJson,
                            filterName=filterName,
                            outputPrefix=output_prefix,
-                           useJointCal=self.config.useJointCal,
+                           doApplyExternalPhotoCalib=self.config.doApplyExternalPhotoCalib,
+                           externalPhotoCalibName=self.config.externalPhotoCalibName,
+                           doApplyExternalSkyWcs=self.config.doApplyExternalSkyWcs,
+                           externalSkyWcsName=self.config.externalSkyWcsName,
                            skipTEx=self.config.skipTEx,
                            verbose=self.config.verbose,
                            metrics_package=self.config.metricsRepository,
@@ -143,9 +188,6 @@ class MatchedVisitMetricsTask(CmdLineTask):
         parser.add_id_argument("--id", "jointcal_wcs", help="data ID, with raw CCD keys + tract",
                                ContainerClass=PerTractCcdDataIdContainer)
         return parser
-
-    def _getConfigName(self):
-        return None
 
     def _getMetadataName(self):
         return None
