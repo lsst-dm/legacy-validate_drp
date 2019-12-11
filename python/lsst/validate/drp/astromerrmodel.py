@@ -29,7 +29,7 @@ from scipy.optimize import curve_fit
 from lsst.verify import Blob, Datum
 
 
-def astromErrModel(snr, theta=1000, sigmaSys=10, C=1, **kwargs):
+def astromErrModel(snr, theta=1000, sigmaSys=10, C=1):
     """Calculate expected astrometric uncertainty based on SNR.
 
     mas = C*theta/SNR + sigmaSys

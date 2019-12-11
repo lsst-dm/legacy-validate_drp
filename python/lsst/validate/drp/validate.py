@@ -34,7 +34,7 @@ import astropy.visualization
 
 from lsst.verify import Name
 from lsst.verify import Job, MetricSet, SpecificationSet
-
+from lsst import log
 from lsst.daf.persistence import Butler
 
 from .util import repoNameToPrefix
@@ -103,8 +103,7 @@ def get_filter_name_from_job(job):
     return job.meta['filter_name']
 
 
-def run(repo_or_json, metrics=None,
-        outputPrefix=None, makePrint=True, makePlot=True,
+def run(repo_or_json, outputPrefix=None, makePrint=True, makePlot=True,
         level='design', metrics_package='verify_metrics', **kwargs):
     """Main entrypoint from ``validateDrp.py``.
 
@@ -149,7 +148,7 @@ def run(repo_or_json, metrics=None,
             return
 
         repo_path = repo_or_json
-        jobs = runOneRepo(repo_path, metrics=metrics, outputPrefix=outputPrefix,
+        jobs = runOneRepo(repo_path, outputPrefix=outputPrefix,
                           metrics_package=metrics_package, **kwargs)
 
     for filterName, job in jobs.items():
@@ -165,7 +164,7 @@ def run(repo_or_json, metrics=None,
     print_pass_fail_summary(jobs, default_level=level)
 
 
-def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
+def runOneRepo(repo, dataIds=None, outputPrefix='', verbose=False,
                instrument=None, dataset_repo_url=None,
                metrics_package='verify_metrics', **kwargs):
     r"""Calculate statistics for all filters in a repo.
@@ -183,10 +182,6 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
         The calexp cpixel image is needed for the photometric calibration.
         Tract IDs must be included if "doApplyExternalPhotoCalib" or
         "doApplyExternalSkyWcs" is True.
-    metrics : `dict` or `collections.OrderedDict`
-        Dictionary of `lsst.validate.base.Metric` instances. Typically this is
-        data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
-        `lsst.validate.base.load_metrics`.
     outputPrefix : `str`, optional
         Specify the beginning filename for output files.
         The name of each filter will be appended to outputPrefix.
@@ -237,7 +232,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
         else:
             thisOutputPrefix = "%s_%s" % (outputPrefix, filterName)
         theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
-        job = runOneFilter(repo, theseVisitDataIds, metrics,
+        job = runOneFilter(repo, theseVisitDataIds,
                            outputPrefix=thisOutputPrefix,
                            verbose=verbose, filterName=filterName,
                            instrument=instrument,
@@ -248,7 +243,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
     return jobs
 
 
-def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
+def runOneFilter(repo, visitDataIds, brightSnrMin=100,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                  doApplyExternalSkyWcs=False, externalSkyWcsName=None,
@@ -274,10 +269,6 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         unless doApplyExternalPhotoCalib is True such
         that the appropriate `photoCalib` dataset is used. Note that these
         have data IDs that include the tract number.
-    metrics : `dict` or `collections.OrderedDict`
-        Dictionary of `lsst.validate.base.Metric` instances. Typically this is
-        data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
-        `lsst.validate.base.load_metrics`.
     brightSnrMin : float, optional
         Minimum SNR for a star to be considered bright
     makeJson : bool, optional
@@ -312,6 +303,9 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         None.
     """
 
+    if kwargs:
+        log.warn(f"Extra kwargs - {kwargs}, will be ignored. Did you add extra things to your config file?")
+
     if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
         raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
     if doApplyExternalSkyWcs and externalSkyWcsName is None:
@@ -328,7 +322,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
                                            externalPhotoCalibName=externalPhotoCalibName,
                                            doApplyExternalSkyWcs=doApplyExternalSkyWcs,
                                            externalSkyWcsName=externalSkyWcsName,
-                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd, safeSnr=brightSnr)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)
@@ -348,7 +342,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         afxName = 'AF{0:d}'.format(x)
         adxName = 'AD{0:d}'.format(x)
 
-        amx = measureAMx(metrics['validate_drp.'+amxName], matchedDataset, D*u.arcmin)
+        amx = measureAMx(metrics['validate_drp.'+amxName], matchedDataset, D*u.arcmin, verbose=verbose)
         add_measurement(amx)
 
         afx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[afxName, ])
@@ -392,7 +386,8 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
     if not skipTEx:
         for x, D, bin_range_operator in zip((1, 2), (1.0, 5.0), ("<=", ">=")):
             texName = 'TE{0:d}'.format(x)
-            tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin, bin_range_operator)
+            tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin,
+                             bin_range_operator, verbose=verbose)
             add_measurement(tex)
 
     if makeJson:
