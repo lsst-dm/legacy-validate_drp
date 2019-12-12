@@ -555,6 +555,7 @@ def print_metrics(job, levels=('minimum', 'design', 'stretch')):
 def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), default_level='design'):
     currentTestCount = 0
     currentFailCount = 0
+    currentSkippedCount = 0
 
     for filterName, job in jobs.items():
         specs, metrics = get_specs_metrics(job)
@@ -566,12 +567,16 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
         for specName in levels:
             measurementCount = 0
             failCount = 0
+            skippedCount = 0
             for key, m in job.measurements.items():
-                if np.isnan(m.quantity):
-                    continue
-                measurementCount += 1
-                metric = key.metric.split("_")[0]  # For compound metrics
-                spec_set = specs.get(metric, None)
+                metric = key.metric.split("_")  # For compound metrics
+                len_metric = len(metric)
+                if len_metric > 1:
+                    if metric[1] != specName:
+                        continue
+                    if len_metric > 2 and filterName not in metric[2]:
+                        continue
+                spec_set = specs.get(metric[0], None)
                 if spec_set is None:
                     continue
                 spec = None
@@ -582,19 +587,24 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     for spec_key in spec_set:
                         if specName in spec_key.metric:  # For dependent metrics
                             spec = job.specs[spec_key]
-                if spec is not None and not spec.check(m.quantity):
-                    failCount += 1
+                if spec is not None:
+                    measurementCount += 1
+                    if np.isnan(m.quantity):
+                        skippedCount += 1
+                    if not spec.check(m.quantity):
+                        failCount += 1
 
             if specName == default_level:
                 currentTestCount += measurementCount
                 currentFailCount += failCount
+                currentSkippedCount += skippedCount
 
             if failCount == 0:
-                print('Passed {level:12s} {count:d} measurements'.format(
-                    level=specName, count=measurementCount))
+                print('Passed {level:12s} {count:d} measurements ({skipped:d} skipped)'.format(
+                    level=specName, count=measurementCount, skipped=skippedCount))
             else:
-                msg = 'Failed {level:12s} {failCount} of {count:d} failed'.format(
-                    level=specName, failCount=failCount, count=measurementCount)
+                msg = 'Failed {level:12s} {failCount} of {count:d} failed ({skipped:d} skipped)'.format(
+                    level=specName, failCount=failCount, count=measurementCount, skipped=skippedCount)
                 print(Bcolors.FAIL + msg + Bcolors.ENDC)
 
         print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC + '\n')
@@ -604,11 +614,11 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
     print(Bcolors.BOLD + Bcolors.HEADER + '{0} level summary'.format(default_level) + Bcolors.ENDC)
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)
     if currentFailCount > 0:
-        msg = 'FAILED ({failCount:d}/{count:d} measurements)'.format(
-            failCount=currentFailCount, count=currentTestCount)
+        msg = 'FAILED ({failCount:d}/{count:d} measurements, ({skipped:d} skipped))'.format(
+            failCount=currentFailCount, count=currentTestCount, skipped=currentSkippedCount)
         print(Bcolors.FAIL + msg + Bcolors.ENDC)
     else:
-        print('PASSED ({count:d}/{count:d} measurements)'.format(
-            count=currentTestCount))
+        print('PASSED ({count:d}/{count:d} measurements ({skipped:d} skipped))'.format(
+            count=currentTestCount, skipped=currentSkippedCount))
 
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)
