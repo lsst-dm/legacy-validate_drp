@@ -118,8 +118,9 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
 
     ax[0].hist(dist, bins=100, color=color['all'],
                histtype='stepfilled', orientation='horizontal')
-    ax[0].hist(dist[bright], bins=100, color=color['bright'],
-               histtype='stepfilled', orientation='horizontal')
+    if len(dist[bright]):
+        ax[0].hist(dist[bright], bins=100, color=color['bright'],
+                   histtype='stepfilled', orientation='horizontal')
 
     ax[0].set_ylim([0., 500.])
     ax[0].set_ylabel("Distance [{unit:latex}]".format(unit=dist.unit))
@@ -307,10 +308,11 @@ def plotPhotometryErrorModel(dataset, photomModel,
     ax[0][0].hist(mmagRms,
                   bins=100, range=(0, 500), color=color['all'],
                   histtype='stepfilled', orientation='horizontal')
-    ax[0][0].hist(mmagRmsHighSnr,
-                  bins=100, range=(0, 500),
-                  color=color['bright'],
-                  histtype='stepfilled', orientation='horizontal')
+    if len(mmagRmsHighSnr):
+        ax[0][0].hist(mmagRmsHighSnr,
+                      bins=100, range=(0, 500),
+                      color=color['bright'],
+                      histtype='stepfilled', orientation='horizontal')
     plotOutlinedAxline(
         ax[0][0].axhline,
         mmagrms_median.value,
