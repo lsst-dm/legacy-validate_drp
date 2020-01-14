@@ -28,6 +28,7 @@ import json
 import os
 import numpy as np
 import astropy.units as u
+import random
 
 from textwrap import TextWrapper
 import astropy.visualization
@@ -43,7 +44,8 @@ from .photerrmodel import build_photometric_error_model
 from .astromerrmodel import build_astrometric_error_model
 from .calcnonsrd import measure_model_phot_rep
 from .calcsrd import (measurePA1, measurePA2, measurePF1, measureAMx,
-                      measureAFx, measureADx, measureTEx)
+                      measureAFx, measureADx, measureAB1, measureTEx,
+                      measureAB2, measureABF1, measureAA1)
 from .plot import (plotAMx, plotPA1, plotTEx, plotPhotometryErrorModel,
                    plotAstrometryErrorModel)
 
@@ -166,7 +168,7 @@ def run(repo_or_json, metrics=None,
 
 
 def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
-               instrument=None, dataset_repo_url=None,
+               makeJson=True, instrument=None, dataset_repo_url=None,
                metrics_package='verify_metrics', **kwargs):
     r"""Calculate statistics for all filters in a repo.
 
@@ -236,19 +238,51 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
             thisOutputPrefix = "%s" % filterName
         else:
             thisOutputPrefix = "%s_%s" % (outputPrefix, filterName)
+
+        job = Job.load_metrics_package(meta={'instrument': instrument,
+                                             'filter_name': filterName,
+                                             'dataset_repo_url': dataset_repo_url},
+                                       subset='validate_drp',
+                                       package_name_or_path=metrics_package)
+        # For metrics that should be run on all visits from a single filter:
         theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
-        job = runOneFilter(repo, theseVisitDataIds, metrics,
+        job = runOneFilter(repo, job, theseVisitDataIds, metrics,
                            outputPrefix=thisOutputPrefix,
                            verbose=verbose, filterName=filterName,
                            instrument=instrument,
                            dataset_repo_url=dataset_repo_url,
                            metrics_package=metrics_package, **kwargs)
+        # jobs[filterName] = job
+
+#        import pdb
+#        pdb.set_trace()
+
+        # For metrics that should be run on all visits from a single filter,
+        #   referenced to another filter (e.g., comparison of X-band to r-band):
+        if filterName != 'HSC-R':
+            rBandVisitDataIds = [v for v in dataIds if v['filter'] == 'HSC-R']
+            # Pick an r-band visit at random as the "reference" field:
+            rRefVisitDataId = random.choice(rBandVisitDataIds)
+            theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
+            passVisitIds = [rRefVisitDataId] + theseVisitDataIds
+            job = runVsRefFilter(repo, job, passVisitIds, metrics,
+                                 outputPrefix=thisOutputPrefix,
+                                 verbose=verbose, filterName=filterName,
+                                 instrument=instrument,
+                                 dataset_repo_url=dataset_repo_url,
+                                 metrics_package=metrics_package, **kwargs)
+
+#        pdb.set_trace()
+
         jobs[filterName] = job
+
+        if makeJson:
+            job.write(outputPrefix+'.json')
 
     return jobs
 
 
-def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
+def runOneFilter(repo, job, visitDataIds, metrics, brightSnr=100,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                  doApplyExternalSkyWcs=False, externalSkyWcsName=None,
@@ -268,7 +302,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
     ----------
     repo : string or Butler
         A Butler or a repository URL that can be used to construct one.
-    dataIds : list of dict
+    visitDataIds : list of dict
         List of `butler` data IDs of Image catalogs to compare to reference.
         The `calexp` pixel image is needed for the photometric calibration
         unless doApplyExternalPhotoCalib is True such
@@ -361,6 +395,27 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
             afx = measureAFx(metrics[afx_spec.metric_name], amx, adx, adx_spec)
             add_measurement(afx)
 
+    aa1 = measureAA1(
+        metrics['validate_drp.AA1'], matchedDataset)
+    add_measurement(aa1)
+
+    # ab1 = measureAB1(
+    #    metrics['validate_drp.AB1'], matchedDataset)
+    # add_measurement(ab1)
+
+    # abf1_spec_set = specs.subset(spec_tags=['ABF1', ])
+    # ab2_spec_set = specs.subset(spec_tags=['AB2', ])
+    # for abf1_spec_key, ab2_spec_key in zip(abf1_spec_set, ab2_spec_set):
+    #    abf1_spec = abf1_spec_set[abf1_spec_key]
+    #    ab2_spec = ab2_spec_set[ab2_spec_key]
+    #    ab2 = measureAB2(metrics[ab2_spec.metric_name], ab1, abf1_spec)
+    #    add_measurement(ab2)
+    #    abf1 = measureABF1(metrics[abf1_spec.metric_name], ab1, ab2, ab2_spec)
+    #    add_measurement(abf1)
+
+    # import pdb
+    # pdb.set_trace()
+
     pa1 = measurePA1(
         metrics['validate_drp.PA1'], filterName, matchedDataset.safeMatches, matchedDataset.magKey)
     add_measurement(pa1)
@@ -395,8 +450,115 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
             tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin, bin_range_operator)
             add_measurement(tex)
 
-    if makeJson:
-        job.write(outputPrefix+'.json')
+    # if makeJson:
+        # job.write(outputPrefix+'.json')
+
+    return job
+
+
+def runVsRefFilter(repo, job, visitDataIds, metrics, brightSnr=100,
+                   makeJson=True, filterName=None, outputPrefix='',
+                   useJointCal=False, skipTEx=False, verbose=False,
+                   metrics_package='verify_metrics',
+                   instrument='Unknown', dataset_repo_url='./',
+                   skipNonSrd=False, **kwargs):
+    r"""Main executable for the case where there is one filter being
+        compared against a reference filter.
+
+    Plot files and JSON files are generated in the local directory
+    prefixed with the repository name (where '_' replace path separators),
+    unless overriden by specifying `outputPrefix`.
+    E.g., Analyzing a repository ``CFHT/output``
+    will result in filenames that start with ``CFHT_output_``.
+
+    Parameters
+    ----------
+    repo : string or Butler
+        A Butler or a repository URL that can be used to construct one.
+    visitDataIds : list of dict
+        List of `butler` data IDs of Image catalogs to compare to reference.
+        The `calexp` pixel image is needed for the photometric calibration
+        unless useJointCal is True, in which the `photoCalib` and `wcs`
+        datasets are used instead.  Note that these have data IDs that include
+        the tract number.
+    dataIds : list of dict
+        List of `butler` data IDs of all Image catalogs. Used to select visits
+        in particular filters for metrics that need this.
+    metrics : `dict` or `collections.OrderedDict`
+        Dictionary of `lsst.validate.base.Metric` instances. Typically this is
+        data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
+        `lsst.validate.base.load_metrics`.
+    brightSnr : float, optional
+        Minimum SNR for a star to be considered bright
+    makeJson : bool, optional
+        Create JSON output file for metrics.  Saved to current working directory.
+    outputPrefix : str, optional
+        Specify the beginning filename for output files.
+    filterName : str, optional
+        Name of the filter (bandpass).
+    useJointCal : bool, optional
+        Use jointcal/meas_mosaic outputs to calibrate positions and fluxes.
+    skipTEx : bool, optional
+        Skip TEx calculations (useful for older catalogs that don't have
+        PsfShape measurements).
+    verbose : bool, optional
+        Output additional information on the analysis steps.
+    skipNonSrd : bool, optional
+        Skip any metrics not defined in the LSST SRD; default False.
+    """
+#    job = Job.load_metrics_package(meta={'instrument': instrument,
+#                                         'filter_name': filterName,
+#                                         'dataset_repo_url': dataset_repo_url},
+#                                   subset='validate_drp',
+#                                   package_name_or_path=metrics_package)
+
+    matchedDataset = build_matched_dataset(repo, visitDataIds,
+                                           useJointCal=useJointCal,
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+
+    photomModel = build_photometric_error_model(matchedDataset)
+    astromModel = build_astrometric_error_model(matchedDataset)
+
+    linkedBlobs = [matchedDataset, photomModel, astromModel]
+
+    metrics = job.metrics
+    specs = job.specs
+
+    def add_measurement(measurement):
+        for blob in linkedBlobs:
+            measurement.link_blob(blob)
+        job.measurements.insert(measurement)
+
+#    import pdb
+#    pdb.set_trace()
+
+    # Assumes only one "reference-band" visit was passed in the matches:
+    rBandRefVisits_all = [v for v in visitDataIds if v['filter'] == 'HSC-R']
+    rBandRefVisit = rBandRefVisits_all[0]['visit']
+
+    ab1 = measureAB1(
+        metrics['validate_drp.AB1'], matchedDataset, rBandRefVisit=rBandRefVisit)
+    add_measurement(ab1)
+
+    abf1_spec_set = specs.subset(spec_tags=['ABF1', ])
+    ab2_spec_set = specs.subset(spec_tags=['AB2', ])
+    for abf1_spec_key, ab2_spec_key in zip(abf1_spec_set, ab2_spec_set):
+        abf1_spec = abf1_spec_set[abf1_spec_key]
+        ab2_spec = ab2_spec_set[ab2_spec_key]
+        ab2 = measureAB2(metrics[ab2_spec.metric_name], ab1, abf1_spec)
+        add_measurement(ab2)
+        abf1 = measureABF1(metrics[abf1_spec.metric_name], ab1, ab2, ab2_spec)
+        add_measurement(abf1)
+
+    aa1 = measureAA1(
+        metrics['validate_drp.AA1'], matchedDataset)
+    add_measurement(aa1)
+
+    # import pdb
+    # pdb.set_trace()
+
+#    if makeJson:
+#        job.write(outputPrefix+'.json')
 
     return job
 
