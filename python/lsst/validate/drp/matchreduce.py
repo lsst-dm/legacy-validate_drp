@@ -313,7 +313,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             / tmpCat['base_PsfFlux_instFluxErr']
 
         if doApplyExternalSkyWcs:
-            afwTable.wcsUtils.updateSourceCoords(wcs, tmpCat)
+            afwTable.updateSourceCoords(wcs, tmpCat)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
         if not skipNonSrd:
             tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux'] /
