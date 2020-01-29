@@ -378,6 +378,87 @@ AD3:
       dependencies:
         - AF3
 
+AB1:
+  reference:
+    doc: LPM-17
+    url: http://ls.st/lpm-17
+    page: 30
+  description: >
+    The max rms difference between separations measured in the r-band and those 
+    measured in any other filter (milliarcsec).
+  operator: "<="
+  specs:
+    - level: design
+      value: 10.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+    - level: minimum
+      value: 20.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+    - level: stretch
+      value: 5.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+
+AB2:
+  reference:
+    doc: LPM-17
+    url: http://ls.st/lpm-17
+    page: 30
+  description: >
+    No more than ABF1% of the separation measurements between the r-band and any other filter
+    will deviate by more than this amount from the mean.
+  operator: "<="
+  specs:
+    - level: design
+      value: 20.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - ABF1
+    - level: minimum
+      value: 40.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - ABF1
+    - level: stretch
+      value: 10.0
+      unit: marcsec
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - ABF1
+
+ABF1:
+  reference:
+    doc: LPM-17
+    url: http://ls.st/lpm-17
+    page: 30
+  description: >
+    No more than this percentage of separations between r-band and any other filter will deviate
+    by more than AB2 from the mean.
+  operator: "<="
+  specs:
+    - level: design
+      value: 10.0
+      unit: ''
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - AB2
+    - level: minimum
+      value: 20.0
+      unit: ''
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - AB2
+    - level: stretch
+      value: 5.0
+      unit: ''
+      filter_names: [u, g, i, z, y, HSC-U, HSC-G, HSC-I, HSC-Z, HSC-Y]
+      dependencies:
+        - AB2
+
 TE1:
   reference:
     doc: LPM-17
