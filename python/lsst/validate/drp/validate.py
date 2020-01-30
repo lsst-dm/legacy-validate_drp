@@ -244,6 +244,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
                                              'dataset_repo_url': dataset_repo_url},
                                        subset='validate_drp',
                                        package_name_or_path=metrics_package)
+
         # For metrics that should be run on all visits from a single filter:
         theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
         job = runOneFilter(repo, job, theseVisitDataIds, metrics,
@@ -351,11 +352,11 @@ def runOneFilter(repo, job, visitDataIds, metrics, brightSnr=100,
     if doApplyExternalSkyWcs and externalSkyWcsName is None:
         raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
 
-    job = Job.load_metrics_package(meta={'instrument': instrument,
-                                         'filter_name': filterName,
-                                         'dataset_repo_url': dataset_repo_url},
-                                   subset='validate_drp',
-                                   package_name_or_path=metrics_package)
+#    job = Job.load_metrics_package(meta={'instrument': instrument,
+#                                         'filter_name': filterName,
+#                                         'dataset_repo_url': dataset_repo_url},
+#                                   subset='validate_drp',
+#                                   package_name_or_path=metrics_package)
 
     matchedDataset = build_matched_dataset(repo, visitDataIds,
                                            doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,

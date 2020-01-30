@@ -8,6 +8,7 @@ from lsst.pipe.base import CmdLineTask, ArgumentParser, TaskRunner
 from lsst.pex.config import Config, Field, ChoiceField
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from .validate import runOneFilter, plot_metrics
+from lsst.verify import Job
 
 
 class MatchedVisitMetricsRunner(TaskRunner):
@@ -165,7 +166,13 @@ class MatchedVisitMetricsTask(CmdLineTask):
         """
         output_prefix = os.path.join(output, "%s_%s"%(self.config.outputPrefix, filterName))
         # Metrics are no longer passed. The argument will go away with DM-14274
-        job = runOneFilter(butler, dataIds, metrics=None,
+        job = Job.load_metrics_package(meta={'instrument': self.config.instrumentName,
+                                             'filter_name': filterName,
+                                             'dataset_repo_url': self.config.datasetName},
+                                       subset='validate_drp',
+                                       package_name_or_path=self.config.metricsRepository)
+
+        job = runOneFilter(butler, job, dataIds, metrics=None,
                            brightSnr=self.config.brightSnr,
                            makeJson=self.config.makeJson,
                            filterName=filterName,
