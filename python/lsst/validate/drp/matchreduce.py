@@ -282,6 +282,10 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     srcVis = SourceCatalog(newSchema)
 
     for vId in dataIds:
+        if not butler.datasetExists('src', vId):
+            print("Could not find source catalog for ", vId)
+            print("Skipping this dataId.")
+            continue
 
         photoCalib = _loadPhotoCalib(butler, vId,
                                      doApplyExternalPhotoCalib, externalPhotoCalibName)
