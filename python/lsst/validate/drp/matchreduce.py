@@ -282,6 +282,9 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     srcVis = SourceCatalog(newSchema)
 
     for vId in dataIds:
+        if not butler.datasetExists('src', vId):
+            print(f'Could not find source catalog for {vId}; skipping.')
+            continue
 
         photoCalib = _loadPhotoCalib(butler, vId,
                                      doApplyExternalPhotoCalib, externalPhotoCalibName)
@@ -466,16 +469,14 @@ def _loadPhotoCalib(butler, dataId, doApplyExternalPhotoCalib, externalPhotoCali
             photoCalib = butler.get(f"{externalPhotoCalibName}_photoCalib", dataId)
         except (FitsError, dafPersist.NoResults) as e:
             print(e)
-            print("Could not open external photometric calibration for ", dataId)
-            print("Skipping this dataId.")
+            print(f'Could not open external photometric calib for {dataId}; skipping.')
             photoCalib = None
     else:
         try:
             photoCalib = butler.get('calexp_photoCalib', dataId)
         except (FitsError, dafPersist.NoResults) as e:
             print(e)
-            print("Could not open calibrated image file for ", dataId)
-            print("Skipping this dataId.")
+            print(f'Could not open calibrated image file for {dataId}; skipping.')
         except TypeError as te:
             # DECam images that haven't been properly reformatted
             # can trigger a TypeError because of a residual FITS header
@@ -486,8 +487,7 @@ def _loadPhotoCalib(butler, dataId, doApplyExternalPhotoCalib, externalPhotoCali
             #
             # See, e.g., DM-2957 for details.
             print(te)
-            print("Calibration image header information malformed.")
-            print("Skipping this dataId.")
+            print(f'Calibration image header information malformed for {dataId}; skipping.')
             photoCalib = None
 
     return photoCalib
@@ -515,8 +515,7 @@ def _loadExternalSkyWcs(butler, dataId, externalSkyWcsName):
         wcs = butler.get(f"{externalSkyWcsName}_wcs", dataId)
     except (FitsError, dafPersist.NoResults) as e:
         print(e)
-        print("Could not open external WCS for ", dataId)
-        print("Skipping this dataId.")
+        print(f'Could not open external WCS for {dataId}; skipping.')
         wcs = None
 
     return wcs
