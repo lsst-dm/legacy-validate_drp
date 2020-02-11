@@ -482,7 +482,7 @@ def loadParameters(configFile):
         Struct with configuration parameters.
     """
     with open(configFile, mode='r') as stream:
-        data = yaml.load(stream)
+        data = yaml.safe_load(stream)
 
     return pipeBase.Struct(**data)
 
@@ -588,7 +588,7 @@ def loadRunList(configFile):
     `visits` and `ccd` (or `ccdnum`) must be lists, even if there's only one element.
     """
     stream = open(configFile, mode='r')
-    data = yaml.load(stream)
+    data = yaml.safe_load(stream)
 
     ccdKeyName = getCcdKeyName(data)
     runList = constructRunList(data['visits'], data[ccdKeyName], ccdKeyName=ccdKeyName)
