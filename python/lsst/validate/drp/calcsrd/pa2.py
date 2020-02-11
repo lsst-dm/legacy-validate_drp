@@ -59,5 +59,5 @@ def measurePA2(metric, pa1, pf1_thresh):
     magDiffs = pa1.extras['magDiff'].quantity[0, :]
 
     pf1Percentile = 100.*u.percent - pf1_thresh
-    return Measurement(metric, np.percentile(np.abs(magDiffs), pf1Percentile.value) * magDiffs.unit,
+    return Measurement(metric, np.percentile(np.abs(magDiffs.value), pf1Percentile.value) * magDiffs.unit,
                        extras=datums)

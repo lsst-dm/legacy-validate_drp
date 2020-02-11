@@ -91,9 +91,25 @@ def measureADx(metric, amx, afx_spec):
         # No more than AFx of values will deviate by more than the
         # AMx (50th) + AFx percentiles
         # To compute ADx, use measured AMx and spec for AFx.
-        afxAtPercentile = np.percentile(
-            amx.extras['rmsDistMas'].quantity.to(u.marcsec),
-            100. - afx_spec.threshold.value) * u.marcsec
+        #
+        # The AFx spec is in terms of percentage of outliers
+        # To convert to the percentitle of the largest outliers
+        # We subtract AFx from 100.  So AFx = 10 becomes threshold = 90.
+        threshold = 100 - afx_spec.threshold.value
+
+        # In AstroPy 3,
+        #   numpy.percentitle of an array with quantities
+        #   (incorrectly) returns a unitless number
+        # In AstroPy 4 + numpy >= 1.17,
+        #   numpy.percentitle of an array with Quantities
+        #   correctly returns a number with the same units as the input array.
+        # To be compatible with both Astropy 3.2 and Astropy 4, we:
+        # 1. Extract the array in marcsec and convert to a value.
+        # 2. Calculate the numpy.percentitle of this unitless array
+        # 3. Multiply that result by u.marcsec to get the right units.
+        rmsDistMas = amx.extras['rmsDistMas'].quantity.to(u.marcsec).value
+        afxAtPercentile = np.percentile(rmsDistMas, threshold)
+        afxAtPercentile *= u.marcsec
         quantity = afxAtPercentile - amx.quantity
     else:
         quantity = np.nan * amx.quantity.unit
