@@ -258,27 +258,35 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
 #        import pdb
 #        pdb.set_trace()
 
+
         # For metrics that should be run on all visits from a single filter,
         #   referenced to another filter (e.g., comparison of X-band to r-band):
-        if filterName != 'HSC-R':
-            rBandVisitDataIds = [v for v in dataIds if v['filter'] == 'HSC-R']
+#        if filterName != 'HSC-R':
+#            rBandVisitDataIds = [v for v in dataIds if v['filter'] == 'HSC-R']
             # Pick an r-band visit at random as the "reference" field:
-            rRefVisitDataId = random.choice(rBandVisitDataIds)
-            theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
-            passVisitIds = [rRefVisitDataId] + theseVisitDataIds
-            job = runVsRefFilter(repo, job, passVisitIds, metrics,
-                                 outputPrefix=thisOutputPrefix,
-                                 verbose=verbose, filterName=filterName,
-                                 instrument=instrument,
-                                 dataset_repo_url=dataset_repo_url,
-                                 metrics_package=metrics_package, **kwargs)
+            # rRefVisitDataId_tmp = random.choice(rBandVisitDataIds)
+            # Pick out all dataIds from the visit we randomly selected:
+            # rRefVisitDataIds = [v for v in rBandVisitDataIds if
+            #                     v['visit'] == rRefVisitDataId_tmp['visit']]
+#            theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
+#            # Pass all the r-band data, and select a reference afterwards:
+#            passVisitIds = rBandVisitDataIds + theseVisitDataIds
+            # passVisitIds = rRefVisitDataIds + theseVisitDataIds
 
-#        pdb.set_trace()
+#            import pdb
+#            pdb.set_trace()
+
+#            job = runVsRefFilter(repo, job, passVisitIds, metrics,
+#                                 outputPrefix=thisOutputPrefix,
+#                                 verbose=verbose, filterName=filterName,
+#                                 instrument=instrument,
+#                                 dataset_repo_url=dataset_repo_url,
+#                                 metrics_package=metrics_package, **kwargs)
 
         jobs[filterName] = job
 
         if makeJson:
-            job.write(outputPrefix+'.json')
+            job.write(thisOutputPrefix+'.json')
 
     return jobs
 
@@ -459,7 +467,9 @@ def runOneFilter(repo, job, visitDataIds, metrics, brightSnr=100,
 
 def runVsRefFilter(repo, job, visitDataIds, metrics, brightSnr=100,
                    makeJson=True, filterName=None, outputPrefix='',
-                   useJointCal=False, skipTEx=False, verbose=False,
+                   doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
+                   doApplyExternalSkyWcs=False, externalSkyWcsName=None,
+                   skipTEx=False, verbose=False,
                    metrics_package='verify_metrics',
                    instrument='Unknown', dataset_repo_url='./',
                    skipNonSrd=False, **kwargs):
@@ -506,16 +516,37 @@ def runVsRefFilter(repo, job, visitDataIds, metrics, brightSnr=100,
         Output additional information on the analysis steps.
     skipNonSrd : bool, optional
         Skip any metrics not defined in the LSST SRD; default False.
+
+    Raises
+    ------
+    RuntimeError:
+        Raised if "doApplyExternalPhotoCalib" is True and "externalPhotoCalibName"
+        is None, or if "doApplyExternalSkyWcs" is True and "externalSkyWcsName" is
+        None.
     """
+
+    if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
+        raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
+    if doApplyExternalSkyWcs and externalSkyWcsName is None:
+        raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
+
 #    job = Job.load_metrics_package(meta={'instrument': instrument,
 #                                         'filter_name': filterName,
 #                                         'dataset_repo_url': dataset_repo_url},
 #                                   subset='validate_drp',
 #                                   package_name_or_path=metrics_package)
+#
+#    matchedDataset = build_matched_dataset(repo, visitDataIds,
+#                                           useJointCal=useJointCal,
+#                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
 
     matchedDataset = build_matched_dataset(repo, visitDataIds,
-                                           useJointCal=useJointCal,
-                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+                                           doApplyExternalPhotoCalib=doApplyExternalPhotoCalib,
+                                           externalPhotoCalibName=externalPhotoCalibName,
+                                           doApplyExternalSkyWcs=doApplyExternalSkyWcs,
+                                           externalSkyWcsName=externalSkyWcsName,
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd,
+                                           filterName=filterName)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)
@@ -534,11 +565,15 @@ def runVsRefFilter(repo, job, visitDataIds, metrics, brightSnr=100,
 #    pdb.set_trace()
 
     # Assumes only one "reference-band" visit was passed in the matches:
-    rBandRefVisits_all = [v for v in visitDataIds if v['filter'] == 'HSC-R']
-    rBandRefVisit = rBandRefVisits_all[0]['visit']
+    refFiltName = 'HSC-R'
+    refBandVisits_all = [v for v in visitDataIds if v['filter'] == refFiltName]
+    # Pick an r-band visit at random as the "reference" field:
+    refBandVisitDataId_tmp = random.choice(refBandVisits_all)
+    refBandVisit = refBandVisitDataId_tmp['visit']
+    print('refVisit: ', refBandVisit)
 
     ab1 = measureAB1(
-        metrics['validate_drp.AB1'], matchedDataset, rBandRefVisit=rBandRefVisit)
+        metrics['validate_drp.AB1'], matchedDataset, rBandRefVisit=refBandVisit)
     add_measurement(ab1)
 
     abf1_spec_set = specs.subset(spec_tags=['ABF1', ])

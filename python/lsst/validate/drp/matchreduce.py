@@ -44,7 +44,7 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
 def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
                           doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                           doApplyExternalSkyWcs=False, externalSkyWcsName=None,
-                          skipTEx=False, skipNonSrd=False):
+                          skipTEx=False, skipNonSrd=False, filterName=None):
     """Construct a container for matched star catalogs from multple visits, with filtering,
     summary statistics, and modelling.
 
@@ -137,8 +137,11 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         matchRadius = geom.Angle(1, geom.arcseconds)
 
     # Extract single filter
-    blob['filterName'] = Datum(quantity=set([dId['filter'] for dId in dataIds]).pop(),
-                               description='Filter name')
+    if not filterName:
+        blob['filterName'] = Datum(quantity=set([dId['filter'] for dId in dataIds]).pop(),
+                                   description='Filter name')
+    else:
+        blob['filterName'] = Datum(quantity=filterName, description='Filter name')
 
     # Record important configuration
     blob['doApplyExternalPhotoCalib'] = Datum(quantity=doApplyExternalPhotoCalib,
@@ -463,6 +466,9 @@ def _loadPhotoCalib(butler, dataId, doApplyExternalPhotoCalib, externalPhotoCali
     """
 
     photoCalib = None
+
+#    import pdb
+#    pdb.set_trace()
 
     if doApplyExternalPhotoCalib:
         try:

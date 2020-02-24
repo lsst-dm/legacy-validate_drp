@@ -105,15 +105,15 @@ def measureAB1(metric, matchedDataset, rBandRefVisit=None, magRange=None, verbos
             magRange = np.array(magRange) * u.mag
     datums['magRange'] = Datum(quantity=magRange, description='Stellar magnitude selection range.')
 
-#    import pdb
-#    pdb.set_trace()
-
-    # Register measurement extras
+#   Register measurement extras
     rmsDistances, separations = calcRmsDistances(
         matches,
         rBandRefVisit=rBandRefVisit,
         magRange=magRange,
         verbose=verbose)
+
+#    import pdb
+#    pdb.set_trace()
 
     if len(rmsDistances) == 0:
         # Should be a proper log message
@@ -167,7 +167,19 @@ def calcRmsDistances(groupView, rBandRefVisit, magRange, verbose=False):
 
     uniqVisits = list(uniqVisits)
 
-    # Only do the calculation if the object exists in the reference catalog:
+    # Pick out the reference band visits:
+    # refVisits = set()
+    # refGroupView = [f for f in groupViewInMagRange if f.get('filter') == 'HSC-R']
+    # uniqRefObj = refGroupView.ids
+
+    # for id in uniqRefObj:
+    #    refVisits.update(set(refGroupView[id].get('visit')))
+
+    # refVisits = list(refVisits)
+
+    # Select one reference visit at random:
+    # rBandRefVisit = random.choice(refVisits)
+
     if rBandRefVisit is None:
         # For now, set the "default" visit to be the first in the list:
         rBandRefVisit = uniqVisits[0]
@@ -176,48 +188,56 @@ def calcRmsDistances(groupView, rBandRefVisit, magRange, verbose=False):
         if not isinstance(rBandRefVisit, int):
             rBandRefVisit = int(rBandRefVisit)
 
-    # Remove the reference visit from the set of visits:
-    uniqVisits.remove(rBandRefVisit)
+    # Only do the calculation if the object exists in the reference catalog:
+    if rBandRefVisit in uniqVisits:
+        # Remove the reference visit from the set of visits:
+        uniqVisits.remove(rBandRefVisit)
 
-    rmsDistances = list()
+        rmsDistances = list()
 
-    # Loop over visits, calculating the RMS for each:
-    for vis in uniqVisits:
+        # Loop over visits, calculating the RMS for each:
+        for vis in uniqVisits:
 
-        distancesVisit = list()
+            distancesVisit = list()
 
-        for obj in uniqObj:
-            visMatch = np.where(groupViewInMagRange[obj].get('visit') == vis)
-            refMatch = np.where(groupViewInMagRange[obj].get('visit') == rBandRefVisit)
+            for obj in uniqObj:
+                visMatch = np.where(groupViewInMagRange[obj].get('visit') == vis)
+                refMatch = np.where(groupViewInMagRange[obj].get('visit') == rBandRefVisit)
 
-            raObj = groupViewInMagRange[obj].get('coord_ra')
-            decObj = groupViewInMagRange[obj].get('coord_dec')
+                raObj = groupViewInMagRange[obj].get('coord_ra')
+                decObj = groupViewInMagRange[obj].get('coord_dec')
 
-            # Require it to have a match in both the reference and visit image:
-            if visMatch[0] and refMatch[0]:
-                distances = sphDist(raObj[refMatch], decObj[refMatch],
-                                    raObj[visMatch], decObj[visMatch])
+                # Require it to have a match in both the reference and visit image:
+                if np.size(visMatch[0]) > 0 and np.size(refMatch[0]) > 0:
+                    distances = sphDist(raObj[refMatch], decObj[refMatch],
+                                        raObj[visMatch], decObj[visMatch])
 
-                distancesVisit.append(distances)
+                    distancesVisit.append(distances)
 
-    # import pdb
-    # pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
-    # Return an array with units
-    distancesVisit = np.array(distancesVisit) * u.radian
+        # Return an array with units
+        distancesVisit = np.array(distancesVisit) * u.radian
 
-    finiteEntries = np.where(np.isfinite(distancesVisit))[0]
-    # Need at least 2 distances to get a finite sample stdev
-    if len(finiteEntries) > 1:
-        # Calculate the RMS of these offsets:
-        # ddof=1 to get sample standard deviation (e.g., 1/(n-1))
-        pos_rms_rad = np.std(np.array(distancesVisit)[finiteEntries], ddof=1)
-        pos_rms_mas = geom.radToMas(pos_rms_rad)  # milliarcsec
-        rmsDistances.append(pos_rms_mas)
+        finiteEntries = np.where(np.isfinite(distancesVisit))[0]
+        # Need at least 2 distances to get a finite sample stdev
+        if len(finiteEntries) > 1:
+            # Calculate the RMS of these offsets:
+            # ddof=1 to get sample standard deviation (e.g., 1/(n-1))
+            pos_rms_rad = np.std(np.array(distancesVisit)[finiteEntries], ddof=1)
+            pos_rms_mas = geom.radToMas(pos_rms_rad)  # milliarcsec
+            rmsDistances.append(pos_rms_mas)
 
-    rmsDistances = rmsDistances * u.marcsec
+        rmsDistances = rmsDistances * u.marcsec
+        distancesVisit = distancesVisit.to(u.marcsec)
 
-    return rmsDistances, distancesVisit.to(u.marcsec)
+    else:
+        rmsDistances = []
+        distancesVisit = []
+
+    return rmsDistances, distancesVisit
+#    return rmsDistances, distancesVisit.to(u.marcsec)
 
 
 def radiansToMilliarcsec(rad):
