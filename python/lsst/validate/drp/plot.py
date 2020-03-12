@@ -458,7 +458,7 @@ def plotPA1(pa1, outputPrefix=""):
     ax2 = fig.add_subplot(1, 2, 2, sharey=ax1)
     ax2.hist(magDiff[0], bins=25, range=diffRange,
              orientation='horizontal', histtype='stepfilled',
-             normed=True, color=color['bright'])
+             density=True, color=color['bright'])
     ax2.set_xlabel("relative # / bin")
 
     labelTemplate = r'PA1({label}) = {q.value:4.2f} {q.unit:latex}'
