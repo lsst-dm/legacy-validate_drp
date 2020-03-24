@@ -107,7 +107,7 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
         titles. E.g., ``outputPrefix='Cfht_output_r_'`` will result in a file
         named ``'Cfht_output_r_check_astrometry.png'``.
     """
-    bright, = np.where(dataset['snr'].quantity > astromModel['brightSnr'].quantity)
+    bright, = np.where(dataset['snr'].quantity > astromModel['brightSnrMin'].quantity)
 
     dist = dataset['dist'].quantity
     numMatched = len(dist)
@@ -134,7 +134,7 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
         bright_dist_median.value,
         color=color['bright'],
         label="SNR > {snr:.0f}\nMedian RMS: {v.value:.1f} {v.unit:latex}".format(
-            snr=astromModel['brightSnr'].quantity.value,
+            snr=astromModel['brightSnrMin'].quantity.value,
             v=bright_dist_median))
     ax[0].legend(loc='upper right')
 
@@ -143,7 +143,7 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
                   s=10, color=color['all'], label='All')
     ax[1].scatter(snr[bright], dist[bright], s=10,
                   color=color['bright'],
-                  label='SNR > {0:.0f}'.format(astromModel['brightSnr'].quantity.value))
+                  label='SNR > {0:.0f}'.format(astromModel['brightSnrMin'].quantity.value))
     ax[1].set_xlabel("SNR")
     ax[1].set_xscale("log")
     ax[1].set_ylim([0., 500.])
@@ -160,7 +160,7 @@ def plotAstrometryErrorModel(dataset, astromModel, outputPrefix=''):
                           ax=ax[1])
 
     ax[1].legend(loc='upper right')
-    ax[1].axvline(astromModel['brightSnr'].quantity,
+    ax[1].axvline(astromModel['brightSnrMin'].quantity,
                   color='red', linewidth=4, linestyle='dashed')
     plotOutlinedAxline(
         ax[0].axhline,
@@ -290,7 +290,7 @@ def plotPhotometryErrorModel(dataset, photomModel,
         titles. E.g., ``outputPrefix='Cfht_output_r_'`` will result in a file
         named ``'Cfht_output_r_check_photometry.png'``.
     """
-    bright, = np.where(dataset['snr'].quantity > photomModel['brightSnr'].quantity)
+    bright, = np.where(dataset['snr'].quantity > photomModel['brightSnrMin'].quantity)
 
     numMatched = len(dataset['mag'].quantity)
     magrms = dataset['magrms'].quantity
@@ -323,7 +323,7 @@ def plotPhotometryErrorModel(dataset, photomModel,
         bright_mmagrms_median.value,
         color=color['bright'],
         label="SNR > {snr:.0f}\nMedian RMS: {v:.1f}".format(
-            snr=photomModel['brightSnr'].quantity.value,
+            snr=photomModel['brightSnrMin'].quantity.value,
             v=bright_mmagrms_median))
 
     ax[0][0].set_ylim([0, 500])
@@ -336,8 +336,8 @@ def plotPhotometryErrorModel(dataset, photomModel,
     ax[0][1].scatter(mag[bright], mmagRmsHighSnr,
                      s=10, color=color['bright'],
                      label='{label} > {value:.0f}'.format(
-                         label=photomModel['brightSnr'].label,
-                         value=photomModel['brightSnr'].quantity.value))
+                         label=photomModel['brightSnrMin'].label,
+                         value=photomModel['brightSnrMin'].quantity.value))
     ax[0][1].set_xlabel("{label} [{unit:latex}]".format(label=filterName,
                                                         unit=mag.unit))
     ax[0][1].set_ylabel("{label} [{unit:latex}]".format(label=dataset['magrms'].label,
@@ -376,9 +376,9 @@ def plotPhotometryErrorModel(dataset, photomModel,
     ax[1][0].set_ylabel("Median Reported Magnitude Err [{unit:latex}]".format(
         unit=mmagErr.unit))
 
-    brightSnrMag = 2.5*np.log10(1 + (1/photomModel['brightSnr'].quantity.value)) * u.mag
+    brightSnrMag = 2.5*np.log10(1 + (1/photomModel['brightSnrMin'].quantity.value)) * u.mag
     label = r'$SNR > {snr:.0f} \equiv \sigma <  {snrMag:0.1f}$'.format(
-        snr=photomModel['brightSnr'].quantity.value,
+        snr=photomModel['brightSnrMin'].quantity.value,
         snrMag=brightSnrMag.to(u.mmag))
     ax[1][0].axhline(brightSnrMag.to(u.mmag).value,
                      color='red', linewidth=4,

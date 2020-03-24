@@ -495,7 +495,7 @@ def loadDataIdsAndParameters(configFile):
     configFile : `str`
         YAML file that stores visit, filter, ccd,
         and additional configuration parameters such as
-        brightSnr, medianAstromscatterRef, medianPhotoscatterRef, matchRef
+        brightSnrMin, medianAstromscatterRef, medianPhotoscatterRef, matchRef
 
     Returns
     -------

@@ -143,7 +143,7 @@ def fitPhotErrModel(mag, mag_err):
     return params
 
 
-def build_photometric_error_model(matchedMultiVisitDataset, brightSnr=100, medianRef=100,
+def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, medianRef=100,
                                   matchRef=500):
     r"""Returns a serializable analytic photometry error model for a single visit.
 
@@ -161,7 +161,7 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnr=100, media
     matchedMultiVisitDataset : `lsst.valididate.drp.matchreduce.MatchedMultiVisitDataset`
         A dataset containing matched statistics for stars across multiple
         visits.
-    brightSnr : `float` or `astropy.unit.Quantity`, optional
+    brightSnrMin : `float` or `astropy.unit.Quantity`, optional
         Minimum SNR for a star to be considered "bright."
     medianRef : `float` or `astropy.unit.Quantity`, optional
         Median reference astrometric scatter (millimagnitudes by default).
@@ -173,7 +173,7 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnr=100, media
     blob : `lsst.verify.Blob`
         Blob with datums:
 
-        - ``brightSnr``: Threshold in SNR for bright sources used in this  model.
+        - ``brightSnrMin``: Threshold in SNR for bright sources used in this  model.
         - ``sigmaSys``: Systematic error floor.
         - ``gamma``: Proxy for sky brightness and read noise.
         - ``m5``: 5-sigma photometric depth (magnitudes).
@@ -197,34 +197,33 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnr=100, media
 
     if not isinstance(medianRef, u.Quantity):
         medianRef = medianRef * u.mmag
-    if not isinstance(brightSnr, u.Quantity):
-        brightSnr = brightSnr * u.Unit('')
+    if not isinstance(brightSnrMin, u.Quantity):
+        brightSnrMin = brightSnrMin * u.Unit('')
     _compute(blob,
              matchedMultiVisitDataset['snr'].quantity,
              matchedMultiVisitDataset['mag'].quantity,
              matchedMultiVisitDataset['magerr'].quantity,
              matchedMultiVisitDataset['magrms'].quantity,
              matchedMultiVisitDataset['dist'].quantity,
-             len(matchedMultiVisitDataset.goodMatches),
-             brightSnr,
+             len(matchedMultiVisitDataset.matchesFaint),
+             brightSnrMin,
              medianRef,
              matchRef)
     return blob
 
 
 def _compute(blob, snr, mag, magErr, magRms, dist, nMatch,
-             brightSnr, medianRef, matchRef):
-    blob['brightSnr'] = Datum(quantity=brightSnr,
-                              label='Bright SNR',
-                              description='Threshold in SNR for bright sources used in this '
-                                          'model')
+             brightSnrMin, medianRef, matchRef):
+    blob['brightSnrMin'] = Datum(quantity=brightSnrMin,
+                                 label='Bright SNR',
+                                 description='Threshold in SNR for bright sources used in this model')
 
-    bright = np.where(snr > blob['brightSnr'].quantity)
+    bright = np.where(snr > blob['brightSnrMin'].quantity)
     blob['photScatter'] = Datum(quantity=np.median(magRms[bright]),
                                 label='RMS',
                                 description='RMS photometric scatter for good stars')
     print('Photometric scatter (median) - SNR > {0:.1f} : {1:.1f}'.format(
-          blob['brightSnr'].quantity, blob['photScatter'].quantity.to(u.mmag)))
+          blob['brightSnrMin'].quantity, blob['photScatter'].quantity.to(u.mmag)))
 
     fit_params = fitPhotErrModel(mag[bright], magErr[bright])
     blob['sigmaSys'] = Datum(quantity=fit_params['sigmaSys'],

@@ -95,7 +95,7 @@ def measureAMx(metric, matchedDataset, D, width=2., magRange=None, verbose=False
     and to astrometric measurements performed in the r and i bands.
     """
 
-    matches = matchedDataset.safeMatches
+    matches = matchedDataset.matchesBright
 
     datums = {}
 

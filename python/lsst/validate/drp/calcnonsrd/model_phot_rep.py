@@ -19,7 +19,7 @@
 # see <https://www.lsstcorp.org/LegalNotices/>.
 
 from lsst.validate.drp.repeatability import measurePhotRepeat
-from lsst.validate.drp.matchreduce import reduceSources
+from lsst.validate.drp.matchreduce import getKeysFilter, filterSources
 
 
 def measure_model_phot_rep(metrics, filterName, matchedDataset, snr_bins=None):
@@ -60,8 +60,10 @@ def measure_model_phot_rep(metrics, filterName, matchedDataset, snr_bins=None):
         snr_bins = [((5, 10), (10, 20)), ((20, 40), (40, 80))]
     name_flux_all = ["base_PsfFlux", 'slot_ModelFlux']
     measurements = []
+    schema = matchedDataset._matchedCatalog.schema
     for name_flux in name_flux_all:
-        key_model_mag = matchedDataset._matchedCatalog.schema.find(f"{name_flux}_mag").key
+        keys = getKeysFilter(schema, nameFluxKey=name_flux)
+        key_model_mag = schema.find(f"{name_flux}_mag").key
         if name_flux == 'slot_ModelFlux':
             name_sources = ['Gal', 'Star']
             prefix_metric = 'model'
@@ -71,14 +73,17 @@ def measure_model_phot_rep(metrics, filterName, matchedDataset, snr_bins=None):
         for idx_bins, ((snr_one_min, snr_one_max), (snr_two_min, snr_two_max)) in enumerate(snr_bins):
             bin_base = 1 + 2*idx_bins
             for source in name_sources:
-                reduceSources(matchedDataset, matchedDataset._matchedCatalog, extended=source == 'Gal',
-                              nameFluxKey=name_flux, goodSnr=snr_one_min, goodSnrMax=snr_one_max,
-                              safeSnr=snr_two_min, safeSnrMax=snr_two_max)
+                matches = filterSources(
+                    matchedDataset._matchedCatalog, keys=keys, extended=(source == 'Gal'),
+                    faintSnrMin=snr_one_min, faintSnrMax=snr_one_max,
+                    brightSnrMin=snr_two_min, brightSnrMax=snr_two_max,
+                )
                 for bin_offset in [0, 1]:
                     model_phot_rep = measurePhotRepeat(
                         metrics[f'validate_drp.{prefix_metric}PhotRep{source}{bin_base + bin_offset}'],
                         filterName,
-                        matchedDataset.goodMatches if bin_offset == 0 else matchedDataset.safeMatches,
+                        matches.matchesFaint if bin_offset == 0 else matches.matchesBright,
                         key_model_mag)
                     measurements.append(model_phot_rep)
+
     return measurements

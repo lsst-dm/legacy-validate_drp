@@ -93,7 +93,7 @@ def measureTEx(metric, matchedDataset, D, bin_range_operator, verbose=False):
     Table 27: These residual PSF ellipticity correlations apply to the r and i bands.
     """
 
-    matches = matchedDataset.safeMatches
+    matches = matchedDataset.matchesBright
 
     datums = {}
     datums['D'] = Datum(quantity=D, description="Separation distance")

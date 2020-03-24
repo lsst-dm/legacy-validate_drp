@@ -21,7 +21,7 @@
 for measurement classes, plotting functions, and JSON persistence.
 """
 
-__all__ = ['build_matched_dataset', 'reduceSources']
+__all__ = ['build_matched_dataset', 'getKeysFilter', 'filterSources', 'summarizeSources']
 
 import numpy as np
 import astropy.units as u
@@ -35,13 +35,14 @@ from lsst.afw.table import (SourceCatalog, SchemaMapper, Field,
                             SOURCE_IO_NO_FOOTPRINTS)
 import lsst.afw.table as afwTable
 from lsst.afw.fits import FitsError
+import lsst.pipe.base as pipeBase
 from lsst.verify import Blob, Datum
 
 from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
                    ellipticity_from_cat)
 
 
-def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
+def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=50.,
                           doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                           doApplyExternalSkyWcs=False, externalSkyWcsName=None,
                           skipTEx=False, skipNonSrd=False):
@@ -60,7 +61,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         The `calexp` cpixel image is needed for the photometric calibration.
     matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
-    safeSnr : `float`, optional
+    brightSnrMin : `float`, optional
         Minimum median SNR for a match to be considered "safe".
     doApplyExternalPhotoCalib : bool, optional
         Apply external photoCalib to calibrate fluxes.
@@ -96,25 +97,22 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
         RMS of sky coordinates of stars over multiple visits (milliarcseconds).
 
         *Not serialized.*
-    goodMatches
-        all good matches, as an afw.table.GroupView;
-        good matches contain only objects whose detections all have
+    matchesFaint : `afw.table.GroupView`
+        Faint matches containing only objects that have:
 
-        1. a PSF Flux measurement with S/N > 1
-        2. a finite (non-nan) PSF magnitude. This separate check is largely
+        1. A PSF Flux measurement with sufficient S/N.
+        2. A finite (non-nan) PSF magnitude. This separate check is largely
            to reject failed zeropoints.
-        3. and do not have flags set for bad, cosmic ray, edge or saturated
+        3. No flags set for bad, cosmic ray, edge or saturated.
+        4. Extendedness consistent with a point source.
 
         *Not serialized.*
-
-    safeMatches
-        safe matches, as an afw.table.GroupView. Safe matches
-        are good matches that are sufficiently bright and sufficiently
-        compact.
+    matchesBright : `afw.table.GroupView`
+        Bright matches matching a higher S/N threshold than matchesFaint.
 
         *Not serialized.*
     magKey
-        Key for `"base_PsfFlux_mag"` in the `goodMatches` and `safeMatches`
+        Key for `"base_PsfFlux_mag"` in the `matchesFaint` and `matchesBright`
         catalog tables.
 
         *Not serialized.*
@@ -163,7 +161,7 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, safeSnr=50.,
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
     # These are the serialiable attributes of this class.
-    reduceSources(blob, blob._matchedCatalog, safeSnr)
+    summarizeSources(blob, filterSources(blob._matchedCatalog, brightSnrMin=brightSnrMin))
     return blob
 
 
@@ -345,101 +343,142 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     return srcVis, allMatches
 
 
-def reduceSources(blob, allMatches, goodSnr=5.0, safeSnr=50.0, safeExtendedness=1.0, extended=False,
-                  nameFluxKey=None, goodSnrMax=np.Inf, safeSnrMax=np.Inf):
-    """Calculate summary statistics for each star. These are persisted
+def getKeysFilter(schema, nameFluxKey=None):
+    """ Get schema keys for filtering sources.
+
+    schema : `lsst.afw.table.Schema`
+        A table schema to retrieve keys from.
+    nameFluxKey : `str`
+        The name of a flux field to retrieve
+
+    Returns
+    -------
+    keys : `lsst.pipe.base.Struct`
+        A struct storing schema keys to aggregate over.
+    """
+    if nameFluxKey is None:
+        nameFluxKey = "base_PsfFlux"
+        # Filter down to matches with at least 2 sources and good flags
+
+    return pipeBase.Struct(
+        flags=[schema.find("base_PixelFlags_flag_%s" % flag).key
+               for flag in ("saturated", "cr", "bad", "edge")],
+        snr=schema.find(f"{nameFluxKey}_snr").key,
+        mag=schema.find(f"{nameFluxKey}_mag").key,
+        magErr=schema.find(f"{nameFluxKey}_magErr").key,
+        extended=schema.find("base_ClassificationExtendedness_value").key,
+    )
+
+
+def filterSources(allMatches, keys=None, faintSnrMin=5.0, brightSnrMin=50.0, safeExtendedness=1.0,
+                  extended=False, faintSnrMax=np.Inf, brightSnrMax=np.Inf):
+    """Filter matched sources on flags and SNR.
+
+    Parameters
+    ----------
+    allMatches : `lsst.afw.table.GroupView`
+        GroupView object with matches.
+    keys : `lsst.pipe.base.Struct`
+        A struct storing schema keys to aggregate over.
+    faintSnrMin : float, optional
+        Minimum median SNR for a faint source match; default 5.
+    brightSnrMin : float, optional
+        Minimum median SNR for a bright source match; default 50.
+    safeExtendedness: float, optional
+        Maximum (exclusive) extendedness for sources or minimum (inclusive) if extended==True.
+    extended: bool, optional
+        Whether to select extended sources, i.e. galaxies.
+    faintSnrMax : float, optional
+        Maximum median SNR for a faint source match; default np.Inf.
+    brightSnrMax : float, optional
+        Maximum median SNR for a bright source match; default np.Inf.
+
+    Returns
+    -------
+    filterResult : `lsst.pipe.base.Struct`
+        A struct containing good and safe matches and the necessary keys to use them.
+    """
+    if keys is None:
+        keys = getKeysFilter(allMatches.schema, "slot_ModelFlux" if extended else "base_PsfFlux")
+    nMatchesRequired = 2
+    snrMin, snrMax = faintSnrMin, faintSnrMax
+
+    def extendedFilter(cat):
+        if len(cat) < nMatchesRequired:
+            return False
+        for flagKey in keys.flags:
+            if cat.get(flagKey).any():
+                return False
+        if not np.isfinite(cat.get(keys.mag)).all():
+            return False
+        extendedness = cat.get(keys.extended)
+        return np.min(extendedness) >= safeExtendedness if extended else \
+            np.max(extendedness) < safeExtendedness
+
+    def snrFilter(cat):
+        # Note that this also implicitly checks for psfSnr being non-nan.
+        snr = np.median(cat.get(keys.snr))
+        return snrMax >= snr >= snrMin
+
+    def fullFilter(cat):
+        return extendedFilter(cat) and snrFilter(cat)
+
+    # If brightSnrMin range is a subset of faintSnrMin, it's safe to only filter on snr again
+    # Otherwise, filter on flags/extendedness first, then snr
+    isSafeSubset = faintSnrMax >= brightSnrMax and faintSnrMin <= brightSnrMin
+    matchesFaint = allMatches.where(fullFilter) if isSafeSubset else allMatches.where(extendedFilter)
+    snrMin, snrMax = brightSnrMin, brightSnrMax
+    matchesBright = matchesFaint.where(snrFilter)
+    # This means that matchesFaint has had extendedFilter but not snrFilter applied
+    if not isSafeSubset:
+        snrMin, snrMax = faintSnrMin, faintSnrMax
+        matchesFaint = matchesFaint.where(snrFilter)
+
+    return pipeBase.Struct(
+        extended=extended, keys=keys, matchesFaint=matchesFaint, matchesBright=matchesBright,
+    )
+
+
+def summarizeSources(blob, filterResult):
+    """Calculate summary statistics for each source. These are persisted
     as object attributes.
 
     Parameters
     ----------
     blob : `lsst.verify.blob.Blob`
         A verification blob to store Datums in.
-    allMatches : `lsst.afw.table.GroupView`
-        GroupView object with matches.
-    goodSnr : float, optional
-        Minimum median SNR for a match to be considered "good"; default 3.
-    safeSnr : float, optional
-        Minimum median SNR for a match to be considered "safe"; default 50.
-    safeExtendedness: float, optional
-        Maximum (exclusive) extendedness for sources or minimum (inclusive) if extended==True.
-    extended: bool, optional
-        Whether to select extended sources, i.e. galaxies.
-    goodSnrMax : float, optional
-        Maximum median SNR for a match to be considered "good"; default np.Inf.
-    safeSnrMax : float, optional
-        Maximum median SNR for a match to be considered "safe"; default np.Inf.
+    filterResult : `lsst.pipe.base.Struct`
+        A struct containing bright and faint filter matches, as returned by `filterSources`.
     """
-    if nameFluxKey is None:
-        nameFluxKey = "slot_ModelFlux" if extended else "base_PsfFlux"
-    # Filter down to matches with at least 2 sources and good flags
-    flagKeys = [allMatches.schema.find("base_PixelFlags_flag_%s" % flag).key
-                for flag in ("saturated", "cr", "bad", "edge")]
-    nMatchesRequired = 2
-
-    snrKey = allMatches.schema.find(f"{nameFluxKey}_snr").key
-    magKey = allMatches.schema.find(f"{nameFluxKey}_mag").key
-    magErrKey = allMatches.schema.find(f"{nameFluxKey}_magErr").key
-    extendedKey = allMatches.schema.find("base_ClassificationExtendedness_value").key
-
-    snrMin, snrMax = goodSnr, goodSnrMax
-
-    def extendedFilter(cat):
-        if len(cat) < nMatchesRequired:
-            return False
-        for flagKey in flagKeys:
-            if cat.get(flagKey).any():
-                return False
-        if not np.isfinite(cat.get(magKey)).all():
-            return False
-        extendedness = cat.get(extendedKey)
-        return np.min(extendedness) >= safeExtendedness if extended else \
-            np.max(extendedness) < safeExtendedness
-
-    def snrFilter(cat):
-        # Note that this also implicitly checks for psfSnr being non-nan.
-        snr = np.median(cat.get(snrKey))
-        return snrMax >= snr >= snrMin
-
-    def fullFilter(cat):
-        return extendedFilter(cat) and snrFilter(cat)
-
-    # If safeSnr range is a subset of goodSnr, it's safe to only filter on snr again
-    # Otherwise, filter on flags/extendedness first, then snr
-    isSafeSubset = goodSnrMax >= safeSnrMax and goodSnr <= safeSnr
-    goodMatches = allMatches.where(fullFilter) if isSafeSubset else allMatches.where(extendedFilter)
-    snrMin, snrMax = safeSnr, safeSnrMax
-    safeMatches = goodMatches.where(snrFilter)
-    if not isSafeSubset:
-        snrMin, snrMax = goodSnr, goodSnrMax
-        goodMatches = goodMatches.where(snrFilter)
-
     # Pass field=psfMagKey so np.mean just gets that as its input
-    typeMag = "model" if extended else "PSF"
+    typeMag = "model" if filterResult.extended else "PSF"
     filter_name = blob['filterName']
-    source_type = f'{"extended" if extended else "point"} sources"'
-    blob['snr'] = Datum(quantity=goodMatches.aggregate(np.median, field=snrKey) * u.Unit(''),
+    source_type = f'{"extended" if filterResult.extended else "point"} sources"'
+    matches = filterResult.matchesFaint
+    keys = filterResult.keys
+    blob['snr'] = Datum(quantity=matches.aggregate(np.median, field=keys.snr) * u.Unit(''),
                         label='SNR({band})'.format(band=filter_name),
                         description=f'Median signal-to-noise ratio of {typeMag} magnitudes for {source_type}'
                                     f' over multiple visits')
-    blob['mag'] = Datum(quantity=goodMatches.aggregate(np.mean, field=magKey) * u.mag,
+    blob['mag'] = Datum(quantity=matches.aggregate(np.mean, field=keys.mag) * u.mag,
                         label='{band}'.format(band=filter_name),
                         description=f'Mean of {typeMag} magnitudes for {source_type} over multiple visits')
-    blob['magrms'] = Datum(quantity=goodMatches.aggregate(np.std, field=magKey) * u.mag,
+    blob['magrms'] = Datum(quantity=matches.aggregate(np.std, field=keys.mag) * u.mag,
                            label='RMS({band})'.format(band=filter_name),
                            description=f'RMS of {typeMag} magnitudes for {source_type} over multiple visits')
-    blob['magerr'] = Datum(quantity=goodMatches.aggregate(np.median, field=magErrKey) * u.mag,
+    blob['magerr'] = Datum(quantity=matches.aggregate(np.median, field=keys.magErr) * u.mag,
                            label='sigma({band})'.format(band=filter_name),
                            description=f'Median 1-sigma uncertainty of {typeMag} magnitudes for {source_type}'
                                        f' over multiple visits')
     # positionRmsFromCat knows how to query a group
     # so we give it the whole thing by going with the default `field=None`.
-    blob['dist'] = Datum(quantity=goodMatches.aggregate(positionRmsFromCat) * u.milliarcsecond,
+    blob['dist'] = Datum(quantity=matches.aggregate(positionRmsFromCat) * u.milliarcsecond,
                          label='d',
                          description=f'RMS of sky coordinates of {source_type} over multiple visits')
 
     # These attributes are not serialized
-    blob.goodMatches = goodMatches
-    blob.safeMatches = safeMatches
+    blob.matchesFaint = filterResult.matchesFaint
+    blob.matchesBright = filterResult.matchesBright
 
 
 def _loadPhotoCalib(butler, dataId, doApplyExternalPhotoCalib, externalPhotoCalibName):

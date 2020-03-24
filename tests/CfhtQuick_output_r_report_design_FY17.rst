@@ -10,9 +10,9 @@ Metric Filter    Unit Operator SRD Requirement: design Release Target: FY17    V
    AM3      r marcsec       <=                    15.0                 40.0       **         
    AD3      r marcsec       <=                    30.0                 30.0       **         
    AF3      r       %       <=                    10.0                 10.0       **         
-   PA1      r    mmag       <=                     5.0                  8.0       17         
+   PA1      r    mmag       <=                     5.0                  8.0     16.5         
    PA2      r    mmag       <=                    15.0                 22.5       28         
    PF1      r       %       <=                    10.0                 10.0     42.4         
-   TE1      r               <=                   2e-05                  nan 0.000365         
-   TE2      r               <=                   5e-05                  nan 0.000228         
+   TE1      r               <=                   2e-05                  nan 0.000265         
+   TE2      r               <=                   5e-05                  nan    9e-05         
 ====== ====== ======= ======== ======================= ==================== ======== ========
