@@ -282,7 +282,7 @@ def plotPhotometryErrorModel(dataset, photomModel,
     dataset : `lsst.verify.Blob`
         A `Blob` with the multi-visit photometry model.
     photomModel : `lsst.verify.Blob`
-        A `Blob` hlding the analytic photometry model parameters.
+        A `Blob` holding the analytic photometry model parameters.
     filterName : str, optional
         Name of the observed filter to use on axis labels.
     outputPrefix : str, optional
