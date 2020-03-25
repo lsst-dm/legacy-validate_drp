@@ -248,7 +248,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
     return jobs
 
 
-def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
+def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                  doApplyExternalSkyWcs=False, externalSkyWcsName=None,
@@ -278,7 +278,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
         Dictionary of `lsst.validate.base.Metric` instances. Typically this is
         data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
         `lsst.validate.base.load_metrics`.
-    brightSnr : float, optional
+    brightSnrMin : float, optional
         Minimum SNR for a star to be considered bright
     makeJson : bool, optional
         Create JSON output file for metrics.  Saved to current working directory.
@@ -362,7 +362,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnr=100,
             add_measurement(afx)
 
     pa1 = measurePA1(
-        metrics['validate_drp.PA1'], filterName, matchedDataset.safeMatches, matchedDataset.magKey)
+        metrics['validate_drp.PA1'], filterName, matchedDataset.matchesBright, matchedDataset.magKey)
     add_measurement(pa1)
 
     if not skipNonSrd:

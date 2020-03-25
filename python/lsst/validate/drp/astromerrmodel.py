@@ -99,7 +99,7 @@ def fitAstromErrModel(snr, dist):
     return params
 
 
-def build_astrometric_error_model(matchedMultiVisitDataset, brightSnr=100,
+def build_astrometric_error_model(matchedMultiVisitDataset, brightSnrMin=100,
                                   medianRef=100, matchRef=500):
     r"""Serializable model of astrometry errors across multiple visits.
 
@@ -112,7 +112,7 @@ def build_astrometric_error_model(matchedMultiVisitDataset, brightSnr=100,
     matchedMultiVisitDataset : `MatchedMultiVisitDataset`
         A dataset containing matched statistics for stars across multiple
         visits.
-    brightSnr : `float` or `astropy.unit.Quantity`, optional
+    brightSnrMin : `float` or `astropy.unit.Quantity`, optional
         Minimum SNR for a star to be considered "bright" (dimensionless).
     medianRef : `float` or `astropy.unit.Quantity`, optional
         Median reference astrometric scatter (default: milliarcsecond).
@@ -124,7 +124,7 @@ def build_astrometric_error_model(matchedMultiVisitDataset, brightSnr=100,
     blob : `lsst.verify.Blob`
         Blob with datums:
 
-        - ``brightSnr``: Threshold SNR for bright sources used in this model.
+        - ``brightSnrMin``: Threshold SNR for bright sources used in this model.
         - ``C``: Model scaling factor.
         - ``theta``: Seeing (milliarcsecond).
         - ``sigmaSys``: Systematic error floor (milliarcsecond).
@@ -144,29 +144,29 @@ def build_astrometric_error_model(matchedMultiVisitDataset, brightSnr=100,
     # _doc['doc'] \
     #     = "Astrometric astrometry model: mas = C*theta/SNR + sigmaSys"
 
-    if not isinstance(brightSnr, u.Quantity):
-        brightSnr = brightSnr * u.Unit('')
+    if not isinstance(brightSnrMin, u.Quantity):
+        brightSnrMin = brightSnrMin * u.Unit('')
     if not isinstance(medianRef, u.Quantity):
         medianRef = medianRef * u.marcsec
 
     _compute(blob,
              matchedMultiVisitDataset['snr'].quantity,
              matchedMultiVisitDataset['dist'].quantity,
-             len(matchedMultiVisitDataset.goodMatches),
-             brightSnr, medianRef, matchRef)
+             len(matchedMultiVisitDataset.matchesFaint),
+             brightSnrMin, medianRef, matchRef)
     return blob
 
 
-def _compute(blob, snr, dist, nMatch, brightSnr, medianRef, matchRef):
+def _compute(blob, snr, dist, nMatch, brightSnrMin, medianRef, matchRef):
     median_dist = np.median(dist)
     msg = 'Median value of the astrometric scatter - all magnitudes: ' \
           '{0:.3f}'
     print(msg.format(median_dist))
 
-    bright = np.where(snr > brightSnr)
+    bright = np.where(snr > brightSnrMin)
     astromScatter = np.median(dist[bright])
     msg = 'Astrometric scatter (median) - snr > {0:.1f} : {1:.1f}'
-    print(msg.format(brightSnr, astromScatter))
+    print(msg.format(brightSnrMin, astromScatter))
 
     fit_params = fitAstromErrModel(snr[bright], dist[bright])
 
@@ -179,10 +179,9 @@ def _compute(blob, snr, dist, nMatch, brightSnr, medianRef, matchRef):
               '(should be > {1:d})'
         print(msg.format(nMatch, matchRef))
 
-    blob['brightSnr'] = Datum(quantity=brightSnr,
-                              label='Bright SNR',
-                              description='Threshold in SNR for bright sources used in this '
-                                          'model')
+    blob['brightSnrMin'] = Datum(quantity=brightSnrMin,
+                                 label='Bright SNR',
+                                 description='Threshold in SNR for bright sources used in this model')
     blob['C'] = Datum(quantity=fit_params['C'],
                       description='Scaling factor')
     blob['theta'] = Datum(quantity=fit_params['theta'],

@@ -46,7 +46,7 @@ class ReportPerformanceFromJob(unittest.TestCase):
 
         Reference datasets are from a v13.0 validation_data_hsc run.
 
-        Check for the default (srd_level, release_level) = ('design', 'FY17') and ('miminimum', 'FY18')
+        Check for the default (srd_level, release_level) = ('design', 'FY17') and ('minimum', 'FY18')
         """
         # Manually use temporary directories here,
         #  because I can't figure out how to get py.test tmpdir fixture
