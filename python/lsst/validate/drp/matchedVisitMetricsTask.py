@@ -64,11 +64,11 @@ class MatchedVisitMetricsConfig(Config):
         dtype=str, default='verify_metrics',
         doc="Repository to read metrics and specs from."
     )
-    brightSnr = Field(
-        dtype=float, default=100,
+    brightSnrMin = Field(
+        dtype=float, default=None,
         doc="Minimum PSF signal-to-noise ratio for a star to be considered bright."
     )
-    safeSnr = Field(
+    brightSnrMax = Field(
         dtype=float, default=50,
         doc="Minimum median PSF signal-to-noise ratio for a match to be considered safe."
     )

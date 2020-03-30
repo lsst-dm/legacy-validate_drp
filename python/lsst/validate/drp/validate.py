@@ -243,7 +243,7 @@ def runOneRepo(repo, dataIds=None, outputPrefix='', verbose=False,
     return jobs
 
 
-def runOneFilter(repo, visitDataIds, brightSnrMin=100,
+def runOneFilter(repo, visitDataIds, brightSnrMin=None, brightSnrMax=None,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                  doApplyExternalSkyWcs=False, externalSkyWcsName=None,
@@ -270,7 +270,11 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=100,
         that the appropriate `photoCalib` dataset is used. Note that these
         have data IDs that include the tract number.
     brightSnrMin : float, optional
-        Minimum SNR for a star to be considered bright
+        Minimum median SNR for a source to be considered bright; passed to
+        `lsst.validate.drp.matchreduce.build_matched_dataset`.
+    brightSnrMax : float, optional
+        Maximum median SNR for a source to be considered bright; passed to
+        `lsst.validate.drp.matchreduce.build_matched_dataset`.
     makeJson : bool, optional
         Create JSON output file for metrics.  Saved to current working directory.
     outputPrefix : str, optional
@@ -322,7 +326,8 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=100,
                                            externalPhotoCalibName=externalPhotoCalibName,
                                            doApplyExternalSkyWcs=doApplyExternalSkyWcs,
                                            externalSkyWcsName=externalSkyWcsName,
-                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd, safeSnr=brightSnr)
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd,
+                                           brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)

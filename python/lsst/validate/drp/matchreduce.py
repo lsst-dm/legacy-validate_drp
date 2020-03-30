@@ -42,7 +42,8 @@ from .util import (getCcdKeyName, raftSensorToInt, positionRmsFromCat,
                    ellipticity_from_cat)
 
 
-def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=50.,
+def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=None, brightSnrMax=None,
+                          faintSnrMin=None, faintSnrMax=None,
                           doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                           doApplyExternalSkyWcs=False, externalSkyWcsName=None,
                           skipTEx=False, skipNonSrd=False):
@@ -62,7 +63,13 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=50.,
     matchRadius :  `lsst.geom.Angle`, optional
         Radius for matching. Default is 1 arcsecond.
     brightSnrMin : `float`, optional
-        Minimum median SNR for a match to be considered "safe".
+        Minimum median SNR for a source to be considered bright; passed to `filterSources`.
+    brightSnrMax : `float`, optional
+        Maximum median SNR for a source to be considered bright; passed to `filterSources`.
+    faintSnrMin : `float`, optional
+        Minimum median SNR for a source to be considered faint; passed to `filterSources`.
+    faintSnrMax : `float`, optional
+        Maximum median SNR for a source to be considered faint; passed to `filterSources`.
     doApplyExternalPhotoCalib : bool, optional
         Apply external photoCalib to calibrate fluxes.
     externalPhotoCalibName : str, optional
@@ -160,8 +167,12 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=50.,
 
     blob.magKey = blob._matchedCatalog.schema.find("base_PsfFlux_mag").key
     # Reduce catalogs into summary statistics.
-    # These are the serialiable attributes of this class.
-    summarizeSources(blob, filterSources(blob._matchedCatalog, brightSnrMin=brightSnrMin))
+    # These are the serializable attributes of this class.
+    filterResult = filterSources(
+        blob._matchedCatalog, brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax,
+        faintSnrMin=faintSnrMin, faintSnrMax=faintSnrMax,
+    )
+    summarizeSources(blob, filterResult)
     return blob
 
 
@@ -370,8 +381,8 @@ def getKeysFilter(schema, nameFluxKey=None):
     )
 
 
-def filterSources(allMatches, keys=None, faintSnrMin=5.0, brightSnrMin=50.0, safeExtendedness=1.0,
-                  extended=False, faintSnrMax=np.Inf, brightSnrMax=np.Inf):
+def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, safeExtendedness=None,
+                  extended=False, faintSnrMax=None, brightSnrMax=None):
     """Filter matched sources on flags and SNR.
 
     Parameters
@@ -385,19 +396,29 @@ def filterSources(allMatches, keys=None, faintSnrMin=5.0, brightSnrMin=50.0, saf
     brightSnrMin : float, optional
         Minimum median SNR for a bright source match; default 50.
     safeExtendedness: float, optional
-        Maximum (exclusive) extendedness for sources or minimum (inclusive) if extended==True.
+        Maximum (exclusive) extendedness for sources or minimum (inclusive) if extended==True; default 1.
     extended: bool, optional
         Whether to select extended sources, i.e. galaxies.
     faintSnrMax : float, optional
-        Maximum median SNR for a faint source match; default np.Inf.
+        Maximum median SNR for a faint source match; default `numpy.Inf`.
     brightSnrMax : float, optional
-        Maximum median SNR for a bright source match; default np.Inf.
+        Maximum median SNR for a bright source match; default `numpy.Inf`.
 
     Returns
     -------
     filterResult : `lsst.pipe.base.Struct`
         A struct containing good and safe matches and the necessary keys to use them.
     """
+    if brightSnrMin is None:
+        brightSnrMin = 50
+    if brightSnrMax is None:
+        brightSnrMax = np.Inf
+    if faintSnrMin is None:
+        faintSnrMin = 5
+    if faintSnrMax is None:
+        faintSnrMax = np.Inf
+    if safeExtendedness is None:
+        safeExtendedness = 1.0
     if keys is None:
         keys = getKeysFilter(allMatches.schema, "slot_ModelFlux" if extended else "base_PsfFlux")
     nMatchesRequired = 2

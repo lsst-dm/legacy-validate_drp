@@ -61,6 +61,10 @@ if __name__ == "__main__":
                         E.g., --outputPrefix="mydir/awesome_reduction" will produce
                         "mydir/awesome_reduction_r.json" for the r-band JSON file.
                         """)
+    parser.add_argument('--brightSnrMin', type=float, default=None,
+                        help='Minimum signal-to-noise ratio for SRD metrics on bright point sources')
+    parser.add_argument('--brightSnrMax', type=float, default=None,
+                        help='Maximum signal-to-noise ratio for SRD metrics on bright point sources')
     parser.add_argument('--configFile', '-c', type=str, default=None,
                         help='YAML configuration file validation parameters and dataIds.')
     parser.add_argument('--metricsPackage',
@@ -98,10 +102,7 @@ if __name__ == "__main__":
 
         kwargs['metrics_package'] = args.metricsPackage
 
-    kwargs['verbose'] = args.verbose
-    kwargs['makePlot'] = args.makePlot
-    kwargs['level'] = args.level
-    kwargs['outputPrefix'] = args.outputPrefix
-    kwargs['skipNonSrd'] = args.skipNonSrd
+    for arg in ('brightSnrMin', 'brightSnrMax', 'level', 'makePlot', 'outputPrefix', 'skipNonSrd', 'verbose'):
+        kwargs[arg] = getattr(args, arg)
 
     validate.run(args.repo, **kwargs)

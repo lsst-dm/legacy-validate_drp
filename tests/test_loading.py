@@ -43,7 +43,7 @@ class LoadDataTestCase(unittest.TestCase):
 
     def testLoadingOfConfigFileParameters(self):
         pbStruct = util.loadDataIdsAndParameters(self.configFile)
-        self.assertAlmostEqual(pbStruct.brightSnr, 100)
+        self.assertAlmostEqual(pbStruct.brightSnrMin, 50)
 
     def testLoadingOfConfigFileDataIds(self):
         pbStruct = util.loadDataIdsAndParameters(self.configFile)
