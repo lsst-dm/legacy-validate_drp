@@ -34,7 +34,7 @@ import astropy.visualization
 
 from lsst.verify import Name
 from lsst.verify import Job, MetricSet, SpecificationSet
-
+from lsst import log
 from lsst.daf.persistence import Butler
 
 from .util import repoNameToPrefix
@@ -103,8 +103,7 @@ def get_filter_name_from_job(job):
     return job.meta['filter_name']
 
 
-def run(repo_or_json, metrics=None,
-        outputPrefix=None, makePrint=True, makePlot=True,
+def run(repo_or_json, outputPrefix=None, makePrint=True, makePlot=True,
         level='design', metrics_package='verify_metrics', **kwargs):
     """Main entrypoint from ``validateDrp.py``.
 
@@ -149,7 +148,7 @@ def run(repo_or_json, metrics=None,
             return
 
         repo_path = repo_or_json
-        jobs = runOneRepo(repo_path, metrics=metrics, outputPrefix=outputPrefix,
+        jobs = runOneRepo(repo_path, outputPrefix=outputPrefix,
                           metrics_package=metrics_package, **kwargs)
 
     for filterName, job in jobs.items():
@@ -165,7 +164,7 @@ def run(repo_or_json, metrics=None,
     print_pass_fail_summary(jobs, default_level=level)
 
 
-def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
+def runOneRepo(repo, dataIds=None, outputPrefix='', verbose=False,
                instrument=None, dataset_repo_url=None,
                metrics_package='verify_metrics', **kwargs):
     r"""Calculate statistics for all filters in a repo.
@@ -183,10 +182,6 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
         The calexp cpixel image is needed for the photometric calibration.
         Tract IDs must be included if "doApplyExternalPhotoCalib" or
         "doApplyExternalSkyWcs" is True.
-    metrics : `dict` or `collections.OrderedDict`
-        Dictionary of `lsst.validate.base.Metric` instances. Typically this is
-        data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
-        `lsst.validate.base.load_metrics`.
     outputPrefix : `str`, optional
         Specify the beginning filename for output files.
         The name of each filter will be appended to outputPrefix.
@@ -237,7 +232,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
         else:
             thisOutputPrefix = "%s_%s" % (outputPrefix, filterName)
         theseVisitDataIds = [v for v in dataIds if v['filter'] == filterName]
-        job = runOneFilter(repo, theseVisitDataIds, metrics,
+        job = runOneFilter(repo, theseVisitDataIds,
                            outputPrefix=thisOutputPrefix,
                            verbose=verbose, filterName=filterName,
                            instrument=instrument,
@@ -248,7 +243,7 @@ def runOneRepo(repo, dataIds=None, metrics=None, outputPrefix='', verbose=False,
     return jobs
 
 
-def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
+def runOneFilter(repo, visitDataIds, brightSnrMin=None, brightSnrMax=None,
                  makeJson=True, filterName=None, outputPrefix='',
                  doApplyExternalPhotoCalib=False, externalPhotoCalibName=None,
                  doApplyExternalSkyWcs=False, externalSkyWcsName=None,
@@ -274,12 +269,12 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         unless doApplyExternalPhotoCalib is True such
         that the appropriate `photoCalib` dataset is used. Note that these
         have data IDs that include the tract number.
-    metrics : `dict` or `collections.OrderedDict`
-        Dictionary of `lsst.validate.base.Metric` instances. Typically this is
-        data from ``validate_drp``\ 's ``metrics.yaml`` and loaded with
-        `lsst.validate.base.load_metrics`.
     brightSnrMin : float, optional
-        Minimum SNR for a star to be considered bright
+        Minimum median SNR for a source to be considered bright; passed to
+        `lsst.validate.drp.matchreduce.build_matched_dataset`.
+    brightSnrMax : float, optional
+        Maximum median SNR for a source to be considered bright; passed to
+        `lsst.validate.drp.matchreduce.build_matched_dataset`.
     makeJson : bool, optional
         Create JSON output file for metrics.  Saved to current working directory.
     outputPrefix : str, optional
@@ -312,6 +307,9 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         None.
     """
 
+    if kwargs:
+        log.warn(f"Extra kwargs - {kwargs}, will be ignored. Did you add extra things to your config file?")
+
     if doApplyExternalPhotoCalib and externalPhotoCalibName is None:
         raise RuntimeError("Must set externalPhotoCalibName if doApplyExternalPhotoCalib is True.")
     if doApplyExternalSkyWcs and externalSkyWcsName is None:
@@ -328,7 +326,8 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
                                            externalPhotoCalibName=externalPhotoCalibName,
                                            doApplyExternalSkyWcs=doApplyExternalSkyWcs,
                                            externalSkyWcsName=externalSkyWcsName,
-                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd)
+                                           skipTEx=skipTEx, skipNonSrd=skipNonSrd,
+                                           brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax)
 
     photomModel = build_photometric_error_model(matchedDataset)
     astromModel = build_astrometric_error_model(matchedDataset)
@@ -348,7 +347,7 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
         afxName = 'AF{0:d}'.format(x)
         adxName = 'AD{0:d}'.format(x)
 
-        amx = measureAMx(metrics['validate_drp.'+amxName], matchedDataset, D*u.arcmin)
+        amx = measureAMx(metrics['validate_drp.'+amxName], matchedDataset, D*u.arcmin, verbose=verbose)
         add_measurement(amx)
 
         afx_spec_set = specs.subset(required_meta={'instrument': 'HSC'}, spec_tags=[afxName, ])
@@ -364,11 +363,6 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
     pa1 = measurePA1(
         metrics['validate_drp.PA1'], filterName, matchedDataset.matchesBright, matchedDataset.magKey)
     add_measurement(pa1)
-
-    if not skipNonSrd:
-        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
-        for measurement in model_phot_reps:
-            add_measurement(measurement)
 
     pf1_spec_set = specs.subset(required_meta={'instrument': instrument, 'filter_name': filterName},
                                 spec_tags=['PF1', ])
@@ -392,8 +386,14 @@ def runOneFilter(repo, visitDataIds, metrics, brightSnrMin=100,
     if not skipTEx:
         for x, D, bin_range_operator in zip((1, 2), (1.0, 5.0), ("<=", ">=")):
             texName = 'TE{0:d}'.format(x)
-            tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin, bin_range_operator)
+            tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin,
+                             bin_range_operator, verbose=verbose)
             add_measurement(tex)
+
+    if not skipNonSrd:
+        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
+        for measurement in model_phot_reps:
+            add_measurement(measurement)
 
     if makeJson:
         job.write(outputPrefix+'.json')
@@ -555,6 +555,7 @@ def print_metrics(job, levels=('minimum', 'design', 'stretch')):
 def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), default_level='design'):
     currentTestCount = 0
     currentFailCount = 0
+    currentSkippedCount = 0
 
     for filterName, job in jobs.items():
         specs, metrics = get_specs_metrics(job)
@@ -566,12 +567,16 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
         for specName in levels:
             measurementCount = 0
             failCount = 0
+            skippedCount = 0
             for key, m in job.measurements.items():
-                if np.isnan(m.quantity):
-                    continue
-                measurementCount += 1
-                metric = key.metric.split("_")[0]  # For compound metrics
-                spec_set = specs.get(metric, None)
+                metric = key.metric.split("_")  # For compound metrics
+                len_metric = len(metric)
+                if len_metric > 1:
+                    if metric[1] != specName:
+                        continue
+                    if len_metric > 2 and filterName not in metric[2]:
+                        continue
+                spec_set = specs.get(metric[0], None)
                 if spec_set is None:
                     continue
                 spec = None
@@ -582,19 +587,24 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
                     for spec_key in spec_set:
                         if specName in spec_key.metric:  # For dependent metrics
                             spec = job.specs[spec_key]
-                if spec is not None and not spec.check(m.quantity):
-                    failCount += 1
+                if spec is not None:
+                    measurementCount += 1
+                    if np.isnan(m.quantity):
+                        skippedCount += 1
+                    if not spec.check(m.quantity):
+                        failCount += 1
 
             if specName == default_level:
                 currentTestCount += measurementCount
                 currentFailCount += failCount
+                currentSkippedCount += skippedCount
 
             if failCount == 0:
-                print('Passed {level:12s} {count:d} measurements'.format(
-                    level=specName, count=measurementCount))
+                print('Passed {level:12s} {count:d} measurements ({skipped:d} skipped)'.format(
+                    level=specName, count=measurementCount, skipped=skippedCount))
             else:
-                msg = 'Failed {level:12s} {failCount} of {count:d} failed'.format(
-                    level=specName, failCount=failCount, count=measurementCount)
+                msg = 'Failed {level:12s} {failCount} of {count:d} failed ({skipped:d} skipped)'.format(
+                    level=specName, failCount=failCount, count=measurementCount, skipped=skippedCount)
                 print(Bcolors.FAIL + msg + Bcolors.ENDC)
 
         print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC + '\n')
@@ -604,11 +614,11 @@ def print_pass_fail_summary(jobs, levels=('minimum', 'design', 'stretch'), defau
     print(Bcolors.BOLD + Bcolors.HEADER + '{0} level summary'.format(default_level) + Bcolors.ENDC)
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)
     if currentFailCount > 0:
-        msg = 'FAILED ({failCount:d}/{count:d} measurements)'.format(
-            failCount=currentFailCount, count=currentTestCount)
+        msg = 'FAILED ({failCount:d}/{count:d} measurements, ({skipped:d} skipped))'.format(
+            failCount=currentFailCount, count=currentTestCount, skipped=currentSkippedCount)
         print(Bcolors.FAIL + msg + Bcolors.ENDC)
     else:
-        print('PASSED ({count:d}/{count:d} measurements)'.format(
-            count=currentTestCount))
+        print('PASSED ({count:d}/{count:d} measurements ({skipped:d} skipped))'.format(
+            count=currentTestCount, skipped=currentSkippedCount))
 
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)

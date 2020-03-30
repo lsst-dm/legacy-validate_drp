@@ -508,6 +508,9 @@ def loadDataIdsAndParameters(configFile):
     try:
         dataIds = constructDataIds(parameters['filter'], parameters['visits'],
                                    parameters[ccdKeyName], ccdKeyName)
+        for key in ['filter', 'visits', ccdKeyName]:
+            del parameters[key]
+
     except KeyError:
         # If the above parameters are not in the `parameters` dict,
         # presumably because they were not in the configFile

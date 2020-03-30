@@ -29,7 +29,7 @@ from scipy.optimize import curve_fit
 from lsst.verify import Blob, Datum
 
 
-def photErrModel(mag, sigmaSys, gamma, m5, **kwargs):
+def photErrModel(mag, sigmaSys, gamma, m5):
     r"""Model of photometric error for a single visit.
 
     The model is described in the LSST Overview paper:
@@ -204,7 +204,6 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
              matchedMultiVisitDataset['mag'].quantity,
              matchedMultiVisitDataset['magerr'].quantity,
              matchedMultiVisitDataset['magrms'].quantity,
-             matchedMultiVisitDataset['dist'].quantity,
              len(matchedMultiVisitDataset.matchesFaint),
              brightSnrMin,
              medianRef,
@@ -212,7 +211,7 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
     return blob
 
 
-def _compute(blob, snr, mag, magErr, magRms, dist, nMatch,
+def _compute(blob, snr, mag, magErr, magRms, nMatch,
              brightSnrMin, medianRef, matchRef):
     blob['brightSnrMin'] = Datum(quantity=brightSnrMin,
                                  label='Bright SNR',
