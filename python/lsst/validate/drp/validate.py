@@ -359,11 +359,6 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=100,
         metrics['validate_drp.PA1'], filterName, matchedDataset.matchesBright, matchedDataset.magKey)
     add_measurement(pa1)
 
-    if not skipNonSrd:
-        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
-        for measurement in model_phot_reps:
-            add_measurement(measurement)
-
     pf1_spec_set = specs.subset(required_meta={'instrument': instrument, 'filter_name': filterName},
                                 spec_tags=['PF1', ])
     pa2_spec_set = specs.subset(required_meta={'instrument': instrument, 'filter_name': filterName},
@@ -389,6 +384,11 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=100,
             tex = measureTEx(metrics['validate_drp.'+texName], matchedDataset, D*u.arcmin,
                              bin_range_operator, verbose=verbose)
             add_measurement(tex)
+
+    if not skipNonSrd:
+        model_phot_reps = measure_model_phot_rep(metrics, filterName, matchedDataset)
+        for measurement in model_phot_reps:
+            add_measurement(measurement)
 
     if makeJson:
         job.write(outputPrefix+'.json')
