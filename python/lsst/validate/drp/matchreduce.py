@@ -172,6 +172,12 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=None, br
         blob._matchedCatalog, brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax,
         faintSnrMin=faintSnrMin, faintSnrMax=faintSnrMax,
     )
+    blob['brightSnrMin'] = Datum(quantity=filterResult.brightSnrMin * u.Unit(''),
+                                 label='Bright SNR Min',
+                                 description='Minimum median SNR for a source to be considered bright')
+    blob['brightSnrMax'] = Datum(quantity=filterResult.brightSnrMax * u.Unit(''),
+                                 label='Bright SNR Max',
+                                 description='Maximum median SNR for a source to be considered bright')
     summarizeSources(blob, filterResult)
     return blob
 
@@ -457,6 +463,8 @@ def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, sa
 
     return pipeBase.Struct(
         extended=extended, keys=keys, matchesFaint=matchesFaint, matchesBright=matchesBright,
+        brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax,
+        faintSnrMin=faintSnrMin, faintSnrMax=faintSnrMax,
     )
 
 

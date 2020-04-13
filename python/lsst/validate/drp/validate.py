@@ -329,8 +329,11 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=None, brightSnrMax=None,
                                            skipTEx=skipTEx, skipNonSrd=skipNonSrd,
                                            brightSnrMin=brightSnrMin, brightSnrMax=brightSnrMax)
 
-    photomModel = build_photometric_error_model(matchedDataset)
-    astromModel = build_astrometric_error_model(matchedDataset)
+    snr = matchedDataset['snr'].quantity
+    bright = (matchedDataset['brightSnrMin'].quantity < snr) & (
+        snr < matchedDataset['brightSnrMax'].quantity)
+    photomModel = build_photometric_error_model(matchedDataset, bright)
+    astromModel = build_astrometric_error_model(matchedDataset, bright)
 
     linkedBlobs = [matchedDataset, photomModel, astromModel]
 

@@ -143,8 +143,7 @@ def fitPhotErrModel(mag, mag_err):
     return params
 
 
-def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, medianRef=100,
-                                  matchRef=500):
+def build_photometric_error_model(matchedMultiVisitDataset, selection, medianRef=100, matchRef=500):
     r"""Returns a serializable analytic photometry error model for a single visit.
 
     This model is originally presented in http://arxiv.org/abs/0805.2366v4
@@ -159,10 +158,9 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
     Parameters
     ----------
     matchedMultiVisitDataset : `lsst.valididate.drp.matchreduce.MatchedMultiVisitDataset`
-        A dataset containing matched statistics for stars across multiple
-        visits.
-    brightSnrMin : `float` or `astropy.unit.Quantity`, optional
-        Minimum SNR for a star to be considered "bright."
+        A dataset containing matched statistics for stars across multiple visits.
+    selection : `np.array` of `bool`
+        The selection of sources to use to build the model.
     medianRef : `float` or `astropy.unit.Quantity`, optional
         Median reference astrometric scatter (millimagnitudes by default).
     matchRef : `int` or `astropy.unit.Quantity`, optional
@@ -173,7 +171,6 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
     blob : `lsst.verify.Blob`
         Blob with datums:
 
-        - ``brightSnrMin``: Threshold in SNR for bright sources used in this  model.
         - ``sigmaSys``: Systematic error floor.
         - ``gamma``: Proxy for sky brightness and read noise.
         - ``m5``: 5-sigma photometric depth (magnitudes).
@@ -186,6 +183,8 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
     This limit is a band-dependent statement most appropriate to r.
     """
     blob = Blob('PhotometricErrorModel')
+    for field in ('brightSnrMin', 'brightSnrMax'):
+        blob[field] = matchedMultiVisitDataset[field]
 
     # FIXME add a description field to blobs?
     # _doc['doc'] \
@@ -197,27 +196,18 @@ def build_photometric_error_model(matchedMultiVisitDataset, brightSnrMin=100, me
 
     if not isinstance(medianRef, u.Quantity):
         medianRef = medianRef * u.mmag
-    if not isinstance(brightSnrMin, u.Quantity):
-        brightSnrMin = brightSnrMin * u.Unit('')
     _compute(blob,
-             matchedMultiVisitDataset['snr'].quantity,
+             selection,
              matchedMultiVisitDataset['mag'].quantity,
              matchedMultiVisitDataset['magerr'].quantity,
              matchedMultiVisitDataset['magrms'].quantity,
-             len(matchedMultiVisitDataset.matchesFaint),
-             brightSnrMin,
              medianRef,
              matchRef)
     return blob
 
 
-def _compute(blob, snr, mag, magErr, magRms, nMatch,
-             brightSnrMin, medianRef, matchRef):
-    blob['brightSnrMin'] = Datum(quantity=brightSnrMin,
-                                 label='Bright SNR',
-                                 description='Threshold in SNR for bright sources used in this model')
-
-    bright = np.where(snr > blob['brightSnrMin'].quantity)
+def _compute(blob, bright, mag, magErr, magRms, medianRef, matchRef):
+    nMatch = np.sum(bright)
     blob['photScatter'] = Datum(quantity=np.median(magRms[bright]),
                                 label='RMS',
                                 description='RMS photometric scatter for good stars')
