@@ -65,12 +65,12 @@ class MatchedVisitMetricsConfig(Config):
         doc="Repository to read metrics and specs from."
     )
     brightSnrMin = Field(
-        dtype=float, default=None,
-        doc="Minimum PSF signal-to-noise ratio for a star to be considered bright."
+        dtype=float, default=None, optional=True,
+        doc="Minimum PSF signal-to-noise ratio for a source to be considered bright."
     )
     brightSnrMax = Field(
-        dtype=float, default=50,
-        doc="Minimum median PSF signal-to-noise ratio for a match to be considered safe."
+        dtype=float, default=None, optional=True,
+        doc="Maximum PSF signal-to-noise ratio for a source to be considered bright."
     )
     makeJson = Field(
         dtype=bool, default=True,
@@ -166,7 +166,8 @@ class MatchedVisitMetricsTask(CmdLineTask):
         output_prefix = os.path.join(output, "%s_%s"%(self.config.outputPrefix, filterName))
         # Metrics are no longer passed. The argument will go away with DM-14274
         job = runOneFilter(butler, dataIds, metrics=None,
-                           brightSnr=self.config.brightSnr,
+                           brightSnrMin=self.config.brightSnrMin,
+                           brightSnrMax=self.config.brightSnrMax,
                            makeJson=self.config.makeJson,
                            filterName=filterName,
                            outputPrefix=output_prefix,
