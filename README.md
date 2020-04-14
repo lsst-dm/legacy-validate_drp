@@ -21,7 +21,7 @@ Replace `CFHT/output` with your favorite processed data repository and you will 
 You can run `validateDrp.py` in any of the following modes:
 
 1. Use no configuration file (as above).
-2. Pass a configuration file with just validation parameters (such as `brightSnr`) but no `dataId` specifications.
+2. Pass a configuration file with just validation parameters (such as `brightSnrMin`) but no `dataId` specifications.
 3. Pass a configuration file that specifies validation parameters and the `dataIds` to process.  See examples below for use with a `--configFile`
 
 ## Full processCcd examples
@@ -242,9 +242,9 @@ optional arguments:
 
 You can configure `validateDrp.py` by assigning a YAML file's path to the `--configFile` command argument.
 See `validate_drp`'s `examples/` directory for examples.
-The fields are:
+The fields include:
 
-- `brightSnr` (float): Only consider stars with a S/N high than this limit.
+- `brightSnrMin` (float): Only consider stars with a S/N high than this limit.
 - `visits` (array of ints): List of visit identifiers to process.
 - `filter` (array of strings, or string): Filter to process, or a filter name for each visit (see [Specifying multiple filters](#specifying-multiple-filters)).
 - `ccd` (array of ints): List of CCD chips to process from each visit.
