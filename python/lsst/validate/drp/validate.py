@@ -315,9 +315,15 @@ def runOneFilter(repo, visitDataIds, brightSnrMin=None, brightSnrMax=None,
     if doApplyExternalSkyWcs and externalSkyWcsName is None:
         raise RuntimeError("Must set externalSkyWcsName if doApplyExternalSkyWcs is True.")
 
-    job = Job.load_metrics_package(meta={'instrument': instrument,
-                                         'filter_name': filterName,
-                                         'dataset_repo_url': dataset_repo_url},
+    # collect just the common key, value pairs to omit the keys that are aggregated over
+    job_metadata = dict(set.intersection(*[set(vid.items()) for vid in visitDataIds]))
+
+    # update with metadata passed into the method
+    job_metadata.update({'instrument': instrument,
+                         'filter_name': filterName,
+                         'dataset_repo_url': dataset_repo_url})
+
+    job = Job.load_metrics_package(meta=job_metadata,
                                    subset='validate_drp',
                                    package_name_or_path=metrics_package)
 
