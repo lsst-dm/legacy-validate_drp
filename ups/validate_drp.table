@@ -1,15 +1,9 @@
-setupRequired(python)
 
 setupRequired(utils)
 setupRequired(daf_persistence)
 setupRequired(afw)
 setupRequired(pipe_base)
 setupRequired(verify)
-
-setupRequired(pyyaml)
-setupRequired(scipy)
-setupRequired(matplotlib)
-setupRequired(treecorr)
 
 setupOptional(pipe_tasks)
 setupOptional(pipe_drivers)
