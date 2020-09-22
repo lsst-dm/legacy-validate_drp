@@ -184,7 +184,7 @@ def correlation_function_ellipticity(ra, dec, e1_res, e2_res,
     gg.process(catTree)
     r = np.exp(gg.meanlogr) * u.arcmin
     xip = gg.xip * u.Unit('')
-    xip_err = np.sqrt(gg.varxi) * u.Unit('')
+    xip_err = np.sqrt(gg.varxip) * u.Unit('')
 
     return (r, xip, xip_err)
 
