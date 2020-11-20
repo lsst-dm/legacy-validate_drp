@@ -179,6 +179,9 @@ def build_matched_dataset(repo, dataIds, matchRadius=None, brightSnrMin=None, br
                                  label='Bright SNR Max',
                                  description='Maximum median SNR for a source to be considered bright')
     summarizeSources(blob, filterResult)
+
+    # import pdb ; pdb.set_trace()
+
     return blob
 
 
@@ -352,6 +355,12 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     # Complete the match, returning a catalog that includes
     # all matched sources with object IDs that can be used to group them.
     matchCat = mmatch.finish()
+
+    match_filename = "matchedCat_%s.fits" % vId['filter']
+    matchCat.writeFits(match_filename)
+    print('Wrote matched catalog to file %s' % match_filename)
+
+    # import pdb ; pdb.set_trace()
 
     # Create a mapping object that allows the matches to be manipulated
     # as a mapping of object ID to catalog of sources.
