@@ -302,7 +302,7 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     ccdlist = [v['ccd'] for v in dataIds]
     filtlist = [v['filter'] for v in dataIds]
     tab_vids = Table([vislist, ccdlist, filtlist], names=['vis', 'ccd', 'filt'])
-    sortinds = np.argsort(tab_vids, order=('vis','ccd','filt'))
+    sortinds = np.argsort(tab_vids, order=('vis', 'ccd', 'filt'))
 
     for ind in sortinds:
         vId = dataIds[ind]
@@ -407,7 +407,7 @@ def getKeysFilter(schema, nameFluxKey=None):
 
 
 def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, safeExtendedness=None,
-                  extended=False, faintSnrMax=None, brightSnrMax=None):
+                  extended=False, faintSnrMax=None, brightSnrMax=None, isPrimary=True):
     """Filter matched sources on flags and SNR.
 
     Parameters
@@ -483,11 +483,11 @@ def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, sa
     isSafeSubset = faintSnrMax >= brightSnrMax and faintSnrMin <= brightSnrMin
     matchesFaint = allMatches.where(fullFilter) if isSafeSubset else allMatches.where(extendedFilter)
     snrMin, snrMax = brightSnrMin, brightSnrMax
-    matchesBright = matchesFaint.where(snrFilter)
+    matchesBright = matchesFaint.where(snrFilter and isPrimaryFilter)
     # This means that matchesFaint has had extendedFilter but not snrFilter applied
     if not isSafeSubset:
         snrMin, snrMax = faintSnrMin, faintSnrMax
-        matchesFaint = matchesFaint.where(snrFilter)
+        matchesFaint = matchesFaint.where(snrFilter and isPrimaryFilter)
 
     return pipeBase.Struct(
         extended=extended, keys=keys, matchesFaint=matchesFaint, matchesBright=matchesBright,
