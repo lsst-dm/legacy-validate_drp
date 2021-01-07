@@ -25,6 +25,7 @@ __all__ = ['build_matched_dataset', 'getKeysFilter', 'filterSources', 'summarize
 
 import numpy as np
 import astropy.units as u
+from astropy.table import Table
 from sqlalchemy.exc import OperationalError
 import sqlite3
 
@@ -296,7 +297,17 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
     # create the new extented source catalog
     srcVis = SourceCatalog(newSchema)
 
-    for vId in dataIds:
+    # Sort by visit, detector, then filter
+    vislist = [v['visit'] for v in dataIds]
+    ccdlist = [v['ccd'] for v in dataIds]
+    filtlist = [v['filter'] for v in dataIds]
+    tab_vids = Table([vislist, ccdlist, filtlist], names=['vis', 'ccd', 'filt'])
+    sortinds = np.argsort(tab_vids, order=('vis','ccd','filt'))
+
+    for ind in sortinds:
+        vId = dataIds[ind]
+
+#    for vId in dataIds:
         if not butler.datasetExists('src', vId):
             print(f'Could not find source catalog for {vId}; skipping.')
             continue
@@ -330,6 +341,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         tmpCat['base_PsfFlux_snr'][:] = tmpCat['base_PsfFlux_instFlux'] \
             / tmpCat['base_PsfFlux_instFluxErr']
 
+        # import pdb ; pdb.set_trace()
+
         if doApplyExternalSkyWcs:
             afwTable.updateSourceCoords(wcs, tmpCat)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
@@ -346,12 +359,18 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             tmpCat['psf_e1'][:] = psf_e1
             tmpCat['psf_e2'][:] = psf_e2
 
+        # pdb.set_trace()
         srcVis.extend(tmpCat, False)
         mmatch.add(catalog=tmpCat, dataId=vId)
 
     # Complete the match, returning a catalog that includes
     # all matched sources with object IDs that can be used to group them.
     matchCat = mmatch.finish()
+
+    # Write the matched catalog out to a file:
+    match_filename = "matchedCat_%s.fits" % vId['filter']
+    matchCat.writeFits(match_filename)
+    print('Wrote matched catalog to file %s' % match_filename)
 
     # Create a mapping object that allows the matches to be manipulated
     # as a mapping of object ID to catalog of sources.
@@ -425,6 +444,8 @@ def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, sa
         faintSnrMax = np.Inf
     if safeExtendedness is None:
         safeExtendedness = 1.0
+    if isPrimary is None:
+        isPrimary = True
     if keys is None:
         keys = getKeysFilter(allMatches.schema, "slot_ModelFlux" if extended else "base_PsfFlux")
     nMatchesRequired = 2
@@ -447,8 +468,15 @@ def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, sa
         snr = np.median(cat.get(keys.snr))
         return snrMax >= snr >= snrMin
 
+    def isPrimaryFilter(cat):
+        if isPrimary:
+            flag_isPrimary = cat.get("detect_isPrimary")
+            return np.all(flag_isPrimary)
+        else:
+            return True
+
     def fullFilter(cat):
-        return extendedFilter(cat) and snrFilter(cat)
+        return extendedFilter(cat) and snrFilter(cat) and isPrimaryFilter(cat)
 
     # If brightSnrMin range is a subset of faintSnrMin, it's safe to only filter on snr again
     # Otherwise, filter on flags/extendedness first, then snr
