@@ -483,11 +483,11 @@ def filterSources(allMatches, keys=None, faintSnrMin=None, brightSnrMin=None, sa
     isSafeSubset = faintSnrMax >= brightSnrMax and faintSnrMin <= brightSnrMin
     matchesFaint = allMatches.where(fullFilter) if isSafeSubset else allMatches.where(extendedFilter)
     snrMin, snrMax = brightSnrMin, brightSnrMax
-    matchesBright = matchesFaint.where(snrFilter and isPrimaryFilter)
+    matchesBright = matchesFaint.where(snrFilter)
     # This means that matchesFaint has had extendedFilter but not snrFilter applied
     if not isSafeSubset:
         snrMin, snrMax = faintSnrMin, faintSnrMax
-        matchesFaint = matchesFaint.where(snrFilter and isPrimaryFilter)
+        matchesFaint = matchesFaint.where(snrFilter)
 
     return pipeBase.Struct(
         extended=extended, keys=keys, matchesFaint=matchesFaint, matchesBright=matchesBright,
