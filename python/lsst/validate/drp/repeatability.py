@@ -281,6 +281,7 @@ def getRandomDiff(array):
     float or int
         Difference between two random elements of the array.
     """
+    random.seed(12345)
     a, b = random.sample(range(len(array)), 2)
     return array[a] - array[b]
 

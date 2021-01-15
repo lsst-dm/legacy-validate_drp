@@ -56,7 +56,8 @@ def measurePA2(metric, pa1, pf1_thresh):
     datums['pf1_thresh'] = Datum(quantity=pf1_thresh, description="Threshold from the PF1 specification")
 
     # Use first random sample from original PA1 measurement
-    magDiffs = pa1.extras['magDiff'].quantity[0, :]
+    # magDiffs = pa1.extras['magDiff'].quantity[0, :]
+    magDiffs = pa1.extras['magDiff'].quantity
 
     pf1Percentile = 100.*u.percent - pf1_thresh
     return Measurement(metric, np.percentile(np.abs(magDiffs.value), pf1Percentile.value) * magDiffs.unit,
