@@ -341,8 +341,6 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
         tmpCat['base_PsfFlux_snr'][:] = tmpCat['base_PsfFlux_instFlux'] \
             / tmpCat['base_PsfFlux_instFluxErr']
 
-        # import pdb ; pdb.set_trace()
-
         if doApplyExternalSkyWcs:
             afwTable.updateSourceCoords(wcs, tmpCat)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
@@ -359,7 +357,6 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             tmpCat['psf_e1'][:] = psf_e1
             tmpCat['psf_e2'][:] = psf_e2
 
-        # pdb.set_trace()
         srcVis.extend(tmpCat, False)
         mmatch.add(catalog=tmpCat, dataId=vId)
 
