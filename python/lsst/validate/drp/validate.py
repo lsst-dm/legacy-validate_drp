@@ -532,9 +532,9 @@ def print_metrics(job, levels=('minimum', 'design', 'stretch')):
             if 'release' in job.specs[spec_key].tags:
                 # Skip release specs
                 continue
-            for l in levels:
-                if l in str(spec_key):
-                    level = l
+            for lev in levels:
+                if lev in str(spec_key):
+                    level = lev
             try:
                 m = job.measurements[metric_key]
             except KeyError:
