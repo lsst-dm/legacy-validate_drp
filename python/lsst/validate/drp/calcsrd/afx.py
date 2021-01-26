@@ -92,8 +92,8 @@ def measureAFx(metric, amx, adx, adx_spec):
     datums = {}
     datums['ADx'] = adx.datum
     if not np.isnan(amx.quantity):
-        quantity = 100.*np.mean(amx.extras['rmsDistMas'].quantity > amx.quantity +
-                                adx_spec.threshold)*u.Unit('percent')
+        quantity = 100.*np.mean(amx.extras['rmsDistMas'].quantity > amx.quantity
+                                + adx_spec.threshold)*u.Unit('percent')
     else:
         quantity = np.nan*u.Unit('percent')
     datums.update(amx.extras)

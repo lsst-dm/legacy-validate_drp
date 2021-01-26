@@ -334,8 +334,8 @@ def _loadAndMatchCatalogs(repo, dataIds, matchRadius,
             afwTable.updateSourceCoords(wcs, tmpCat)
         photoCalib.instFluxToMagnitude(tmpCat, "base_PsfFlux", "base_PsfFlux")
         if not skipNonSrd:
-            tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux'] /
-                                               tmpCat['slot_ModelFlux_instFluxErr'])
+            tmpCat['slot_ModelFlux_snr'][:] = (tmpCat['slot_ModelFlux_instFlux']
+                                               / tmpCat['slot_ModelFlux_instFluxErr'])
             photoCalib.instFluxToMagnitude(tmpCat, "slot_ModelFlux", "slot_ModelFlux")
 
         if not skipTEx:
