@@ -514,9 +514,9 @@ def print_metrics(job, levels=('minimum', 'design', 'stretch')):
     specs, metrics = get_specs_metrics(job)
 
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)
-    print(Bcolors.BOLD + Bcolors.HEADER +
-          '{band} band metric measurements'.format(band=job.meta['filter_name']) +
-          Bcolors.ENDC)
+    print(Bcolors.BOLD + Bcolors.HEADER
+          + '{band} band metric measurements'.format(band=job.meta['filter_name'])
+          + Bcolors.ENDC)
     print(Bcolors.BOLD + Bcolors.HEADER + "=" * 65 + Bcolors.ENDC)
 
     wrapper = TextWrapper(width=65)
@@ -532,9 +532,9 @@ def print_metrics(job, levels=('minimum', 'design', 'stretch')):
             if 'release' in job.specs[spec_key].tags:
                 # Skip release specs
                 continue
-            for l in levels:
-                if l in str(spec_key):
-                    level = l
+            for lev in levels:
+                if lev in str(spec_key):
+                    level = lev
             try:
                 m = job.measurements[metric_key]
             except KeyError:

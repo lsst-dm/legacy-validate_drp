@@ -20,6 +20,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <https://www.lsstcorp.org/LegalNotices/>.
 
+import argparse
 
 # Ensure that this script will run on a mis-configured node
 # that may default to a backend that requires X
@@ -27,11 +28,9 @@
 # Putting this here in the command-line script is fine because no one
 # should import this script.
 import matplotlib
-matplotlib.use('Agg')  # noqa E402
+matplotlib.use('Agg')
 
-import argparse
-
-from lsst.validate.drp import validate, util
+from lsst.validate.drp import validate, util  # noqa: E402
 
 
 description = """
