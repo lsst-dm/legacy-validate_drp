@@ -65,7 +65,7 @@ class PhotErrCase(lsst.utils.tests.TestCase):
         # fit results to the hnoisy data and that variation is different
         # for different parameters
         self.assertFloatsAlmostEqual(
-            fit_results['sigmaSys'].value, self.sigmaSys, atol=1e-2)
+            fit_results['sigmaSys'].value, self.sigmaSys, atol=2e-2)
         self.assertFloatsAlmostEqual(
             fit_results['gamma'].value, self.gamma, atol=2e-2)
         self.assertFloatsAlmostEqual(
